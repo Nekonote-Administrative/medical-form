@@ -4,7 +4,6 @@ import { useState, useRef, useCallback, FormEvent, ReactNode } from "react";
 import { useFormContext } from "@/lib/form-context";
 import {
   BasicInfo,
-  FacilityEntry,
   VEHICLE_OPTIONS,
   ACCIDENT_TYPE_OPTIONS,
   INSURANCE_COMPANY_OPTIONS,
@@ -262,73 +261,6 @@ function CheckboxGroup({
   );
 }
 
-/* ── Demo data ── */
-
-const DEMO_BASIC_INFO: BasicInfo = {
-  name: "山田 太郎",
-  nameKana: "ヤマダ タロウ",
-  gender: "男",
-  birthDate: "1985-06-15",
-  postalCode: "160-0023",
-  address: "東京都新宿区西新宿2-8-1",
-  phoneNumber: "090-1234-5678",
-  occupation: "会社員",
-  accidentDate: "2026-02-20",
-  accidentLocation: "東京都新宿区西新宿1丁目交差点付近",
-  yourVehicle: "車",
-  otherVehicle: "車",
-  accidentType: "追突",
-  accidentDescription:
-    "片側2車線の直線道路を北向きに走行中、赤信号で停車していたところ、後方から来た相手車両に追突されました。天候は晴れ、路面は乾燥。同乗者なし。",
-  faultRatioNotified: "はい",
-  faultRatio: "0",
-  treatmentPaymentStatus: ["加害者保険会社支払い中"],
-  otherInsuranceCompany: "東京海上日動火災保険株式会社",
-  otherInsuranceContact: "佐藤 花子 03-1111-2222",
-  myInsuranceCompany: "損害保険ジャパン株式会社",
-  lawyerSpecialClause: "有",
-  personalInjuryClause: "有",
-  accidentCertificateType: "人身事故",
-  hasAccidentPhotos: "はい",
-  remarks: "",
-};
-
-const DEMO_FACILITIES: { category: "orthopedic" | "osteopathic" | "pharmacy"; entry: FacilityEntry }[] = [
-  {
-    category: "orthopedic",
-    entry: {
-      id: "demo-ortho-1",
-      facilityName: "新宿整形外科クリニック",
-      facilityAddress: "東京都新宿区西新宿1-1-1",
-      facilityPostalCode: "160-0023",
-      facilityPhoneNumber: "03-3333-4444",
-      selectionMethod: "manual",
-    },
-  },
-  {
-    category: "osteopathic",
-    entry: {
-      id: "demo-osteo-1",
-      facilityName: "新宿中央整骨院",
-      facilityAddress: "東京都新宿区新宿3-2-1",
-      facilityPostalCode: "160-0022",
-      facilityPhoneNumber: "03-5555-6666",
-      selectionMethod: "manual",
-    },
-  },
-  {
-    category: "pharmacy",
-    entry: {
-      id: "demo-pharm-1",
-      facilityName: "さくら薬局 新宿店",
-      facilityAddress: "東京都新宿区西新宿1-1-2",
-      facilityPostalCode: "160-0023",
-      facilityPhoneNumber: "03-7777-8888",
-      selectionMethod: "manual",
-    },
-  },
-];
-
 /* ── Main Component ── */
 
 export default function BasicInfoForm() {
@@ -492,14 +424,6 @@ export default function BasicInfoForm() {
     }
   }
 
-  function handleDemo() {
-    dispatch({ type: "SET_BASIC_INFO", payload: DEMO_BASIC_INFO });
-    for (const f of DEMO_FACILITIES) {
-      dispatch({ type: "ADD_FACILITY", payload: f });
-    }
-    dispatch({ type: "SET_STEP", payload: 4 });
-  }
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setGeoWarning("");
@@ -560,15 +484,8 @@ export default function BasicInfoForm() {
         <h2 className="text-2xl font-normal text-gf-text">
           被害者請求ヒアリングシート
         </h2>
-        <div className="mt-4 flex items-center justify-between border-t border-gf-border pt-3">
+        <div className="mt-4 border-t border-gf-border pt-3">
           <span className="text-xs text-gf-error">* は必須項目です</span>
-          <button
-            type="button"
-            onClick={handleDemo}
-            className="rounded border border-gf-border px-3 py-1 text-xs text-gf-text-secondary transition-colors hover:bg-gray-100"
-          >
-            デモ
-          </button>
         </div>
       </Card>
 
