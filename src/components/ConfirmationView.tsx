@@ -36,7 +36,25 @@ export default function ConfirmationView() {
       ytPlayerRef.current = new window.YT.Player(playerRef.current, {
         videoId: "6pRMxwYCfnc",
         width: "100%",
+        height: "100%",
         playerVars: { rel: 0 },
+        events: {
+          onStateChange: (event: YT.OnStateChangeEvent) => {
+            // 再生開始時(state=1)に全画面表示をリクエスト
+            if (event.data === 1) {
+              try {
+                const iframe = event.target.getIframe();
+                if (iframe.requestFullscreen) {
+                  iframe.requestFullscreen();
+                } else if ((iframe as unknown as Record<string, () => void>).webkitRequestFullscreen) {
+                  (iframe as unknown as Record<string, () => void>).webkitRequestFullscreen();
+                }
+              } catch {
+                // 全画面表示に失敗しても動画再生は継続
+              }
+            }
+          },
+        },
       });
     };
 
