@@ -60,6 +60,26 @@ const CATEGORY_ROW_COUNT: Record<string, number> = {
   pharmacy: 3,
 };
 
+function getAuth() {
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(
+    /\\n/g,
+    "\n",
+  );
+  if (privateKey && !privateKey.includes("-----BEGIN")) {
+    privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----\n`;
+  }
+
+  if (!email || !privateKey) {
+    throw new Error("Google credentials are not configured");
+  }
+
+  return new google.auth.JWT(email, undefined, privateKey, [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+  ]);
+}
+
 function facilityRows(
   categoryKey: string,
   entries: FacilityEntry[],
@@ -93,50 +113,155 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(
-      /\\n/g,
-      "\n",
-    );
-    // Wrap raw base64 key in PEM headers if missing
-    if (privateKey && !privateKey.includes("-----BEGIN")) {
-      privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----\n`;
-    }
-    const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    const auth = getAuth();
+    const templateId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+    const parentFolderId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 
-    if (!email || !privateKey || !spreadsheetId) {
+    if (!templateId || !parentFolderId) {
       return NextResponse.json(
-        { error: "Google Sheets credentials are not configured" },
+        { error: "Google Drive/Sheets の設定が不足しています" },
         { status: 500 },
       );
     }
 
-    const auth = new google.auth.JWT(email, undefined, privateKey, [
-      "https://www.googleapis.com/auth/spreadsheets",
-    ]);
-
+    const drive = google.drive({ version: "v3", auth });
     const sheets = google.sheets({ version: "v4", auth });
 
+    // -------------------------------------------------------
+    // 1. Google Drive に依頼者名（カタカナ）フォルダを作成
+    // -------------------------------------------------------
+    const folderName = basicInfo.nameKana;
+    const folder = await drive.files.create({
+      requestBody: {
+        name: folderName,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [parentFolderId],
+      },
+      fields: "id",
+      supportsAllDrives: true,
+    });
+    const folderId = folder.data.id;
+    if (!folderId) {
+      throw new Error("フォルダの作成に失敗しました");
+    }
+
+    // -------------------------------------------------------
+    // 2. テンプレート Spreadsheet をフォルダにコピー
+    // -------------------------------------------------------
+    const copiedFile = await drive.files.copy({
+      fileId: templateId,
+      requestBody: {
+        name: `${folderName}_ヒアリングシート`,
+        parents: [folderId],
+      },
+      fields: "id",
+      supportsAllDrives: true,
+    });
+    const spreadsheetId = copiedFile.data.id;
+    if (!spreadsheetId) {
+      throw new Error("テンプレートのコピーに失敗しました");
+    }
+
+    // -------------------------------------------------------
+    // 3. 「印刷用顧客データ」タブにフォーム回答を書き込み
+    // -------------------------------------------------------
+    const treatmentPaymentText =
+      basicInfo.treatmentPaymentStatus?.join("、") || "";
+
+    // B2:Z2 の列順に対応するデータ配列
+    // B=氏名, C=フリガナ, D=性別, E=生年月日, F=郵便番号, G=住所,
+    // H=電話番号, I=職業, J=事故日, K=事故場所, L=自車両, M=相手車両,
+    // N=事故状況の説明, O=事故形態, P=過失割合通知, Q=過失割合,
+    // R=治療費支払状況, S=相手保険会社(固定), T=相手保険会社の連絡先(固定),
+    // U=自分の保険会社, V=弁護士特約(固定), W=人身傷害特約,
+    // X=事故証明書種類, Y=事故写真有無, Z=備考
+    const customerDataRow = [
+      basicInfo.name,
+      basicInfo.nameKana,
+      basicInfo.gender,
+      basicInfo.birthDate,
+      basicInfo.postalCode,
+      basicInfo.address,
+      basicInfo.phoneNumber,
+      basicInfo.occupation,
+      basicInfo.accidentDate,
+      basicInfo.accidentLocation,
+      basicInfo.yourVehicle,
+      basicInfo.otherVehicle,
+      basicInfo.accidentDescription,
+      basicInfo.accidentType,
+      basicInfo.faultRatioNotified,
+      basicInfo.faultRatio,
+      treatmentPaymentText,
+      basicInfo.otherInsuranceCompany,
+      basicInfo.otherInsuranceContact,
+      basicInfo.myInsuranceCompany,
+      basicInfo.lawyerSpecialClause,
+      basicInfo.personalInjuryClause,
+      basicInfo.accidentCertificateType,
+      basicInfo.hasAccidentPhotos,
+      basicInfo.remarks,
+    ];
+
+    // 新規列のヘッダーを書き込み（固定列のヘッダーはテンプレートに既存）
+    const newColumnHeaders: { range: string; value: string }[] = [
+      { range: "印刷用顧客データ!K1", value: "事故場所" },
+      { range: "印刷用顧客データ!L1", value: "自車両" },
+      { range: "印刷用顧客データ!M1", value: "相手車両" },
+      { range: "印刷用顧客データ!O1", value: "事故形態" },
+      { range: "印刷用顧客データ!P1", value: "過失割合通知" },
+      { range: "印刷用顧客データ!Q1", value: "過失割合" },
+      { range: "印刷用顧客データ!R1", value: "治療費支払状況" },
+      { range: "印刷用顧客データ!U1", value: "自分の保険会社" },
+      { range: "印刷用顧客データ!W1", value: "人身傷害特約" },
+      { range: "印刷用顧客データ!X1", value: "事故証明書種類" },
+      { range: "印刷用顧客データ!Y1", value: "事故写真有無" },
+      { range: "印刷用顧客データ!Z1", value: "備考" },
+    ];
+
+    // ヘッダーとデータを一括書き込み
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        valueInputOption: "USER_ENTERED",
+        data: [
+          // 新規列のヘッダー
+          ...newColumnHeaders.map((h) => ({
+            range: h.range,
+            values: [[h.value]],
+          })),
+          // データ行（B2:Z2）
+          {
+            range: "印刷用顧客データ!B2",
+            values: [customerDataRow],
+          },
+        ],
+      },
+    });
+
+    // -------------------------------------------------------
+    // 4. 「通院先リスト」タブに施設データを書き込み
+    // -------------------------------------------------------
     const rows: string[][] = [];
     for (const key of ["orthopedic", "pharmacy", "osteopathic"] as const) {
-      const entries = (facilities[key] || []).slice(0, CATEGORY_ROW_COUNT[key] ?? 3);
+      const entries = (facilities[key] || []).slice(
+        0,
+        CATEGORY_ROW_COUNT[key] ?? 3,
+      );
       rows.push(...facilityRows(key, entries));
     }
 
-    // Get sheetId for 通院先リスト
     const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
     const targetSheet = spreadsheet.data.sheets?.find(
       (s) => s.properties?.title === "通院先リスト",
     );
     const sheetId = targetSheet?.properties?.sheetId ?? 0;
 
-    // Clear existing data (keep header row 1-2, clear from row 3 onward)
     await sheets.spreadsheets.values.clear({
       spreadsheetId,
       range: "通院先リスト!A3:G",
     });
 
-    // Write header label for G2
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: "通院先リスト!G2",
@@ -144,18 +269,14 @@ export async function POST(request: NextRequest) {
       requestBody: { values: [["プリント"]] },
     });
 
-    // Write facility data (A3:G)
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: "通院先リスト!A3",
       valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: rows,
-      },
+      requestBody: { values: rows },
     });
 
-    // Set checkbox data validation on G3:G12
-    const dataRowCount = rows.length; // 10 rows (3+3+4)
+    const dataRowCount = rows.length;
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
@@ -164,9 +285,9 @@ export async function POST(request: NextRequest) {
             setDataValidation: {
               range: {
                 sheetId,
-                startRowIndex: 2, // row 3 (0-indexed)
+                startRowIndex: 2,
                 endRowIndex: 2 + dataRowCount,
-                startColumnIndex: 6, // column G (0-indexed)
+                startColumnIndex: 6,
                 endColumnIndex: 7,
               },
               rule: {
@@ -179,7 +300,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      spreadsheetId,
+      folderId,
+    });
   } catch (error) {
     console.error("Submit error:", error);
     return NextResponse.json(

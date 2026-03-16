@@ -61,49 +61,43 @@ export default function AppointmentScheduler() {
     setBookingError(null);
 
     try {
-      // Run Spreadsheet submit and Calendar booking in parallel
-      const [submitRes, bookRes] = await Promise.all([
-        fetch("/api/submit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            basicInfo: state.basicInfo,
-            facilities: state.facilities,
-          }),
+      // 1. スプレッドシートへの送信
+      const submitRes = await fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          basicInfo: state.basicInfo,
+          facilities: state.facilities,
         }),
-        fetch("/api/calendar/book", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            start: selectedSlot.start,
-            end: selectedSlot.end,
-            name: state.basicInfo.name,
-            phoneNumber: state.basicInfo.phoneNumber,
-            calendarId: selectedSlot.calendarId,
-            staffName: selectedSlot.staffName,
-          }),
-        }),
-      ]);
-
-      const errors: string[] = [];
+      });
 
       if (!submitRes.ok) {
-        errors.push("スプレッドシートへの送信に失敗しました");
+        throw new Error("スプレッドシートへの送信に失敗しました");
       }
+
+      // 2. スプレッドシート送信成功後、カレンダーに予約を追加
+      const bookRes = await fetch("/api/calendar/book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start: selectedSlot.start,
+          end: selectedSlot.end,
+          name: state.basicInfo.name,
+          phoneNumber: state.basicInfo.phoneNumber,
+          calendarId: selectedSlot.calendarId,
+          staffName: selectedSlot.staffName,
+        }),
+      });
 
       if (!bookRes.ok) {
         const bookData = await bookRes.json();
         const bookError = bookData.error || "カレンダー予約に失敗しました";
-        errors.push(bookError);
         // If conflict, refresh slots
         if (bookError.includes("既に予約")) {
           setSelectedSlot(null);
           fetchSlots();
         }
-      }
-
-      if (errors.length > 0) {
-        throw new Error(errors.join("\n"));
+        throw new Error(bookError);
       }
 
       // Save booked appointment info and move to complete step
