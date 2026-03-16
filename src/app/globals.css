@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --color-gf-bg: #f0ebf8;
+  --color-gf-purple: #673ab7;
+  --color-gf-purple-dark: #512da8;
+  --color-gf-purple-light: #ede7f6;
+  --color-gf-error: #d93025;
+  --color-gf-border: #dadce0;
+  --color-gf-text: #202124;
+  --color-gf-text-secondary: #5f6368;
+  --color-gf-input-focus: #673ab7;
+}
