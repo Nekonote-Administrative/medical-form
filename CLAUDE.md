@@ -31,7 +31,7 @@ terraform init && terraform plan && terraform apply
 
 ## Architecture
 
-Medical information collection form (被害者請求ヒアリングシート) for traffic accident victims. Next.js 15 App Router with Google services integration and Anthropic Claude for AI validation/search.
+Medical information collection form (被害者請求ヒアリングシート) for traffic accident victims. Next.js 15 App Router with Google services integration and Google Gemini for AI validation/search.
 
 ### 7-Step Form Flow
 
@@ -52,9 +52,9 @@ Medical information collection form (被害者請求ヒアリングシート) fo
 | `/api/submit` | POST | Copy Sheets template to Drive folder, write basicInfo + facilities |
 | `/api/calendar/availability` | GET | Generate 1h slots (10:00-17:00, 14 days, skip holidays) per staff |
 | `/api/calendar/book` | POST | Create calendar event + Google Chat webhook notification |
-| `/api/search` | POST | Claude Haiku refines query → Google Places API (10km radius) |
+| `/api/search` | POST | Gemini refines query → Google Places API (10km radius) |
 | `/api/geocode` | POST | Google Geocoding: Japanese address → lat/lng |
-| `/api/validate-field` | POST | Claude validates accidentLocation & accidentDescription |
+| `/api/validate-field` | POST | Gemini validates accidentLocation & accidentDescription |
 
 ### Key Integration Pattern
 
@@ -70,7 +70,7 @@ Google Forms-inspired theme with purple accent (`#673ab7`). Custom Tailwind CSS 
 
 ## Environment Variables
 
-**Required:** `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `GOOGLE_SHEETS_SPREADSHEET_ID`, `GOOGLE_DRIVE_PARENT_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_CALENDAR_STAFF` (JSON: `[{name, calendarId, priority}]`)
+**Required:** `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `GOOGLE_SHEETS_SPREADSHEET_ID`, `GOOGLE_DRIVE_PARENT_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, `GEMINI_API_KEY`, `GOOGLE_CALENDAR_STAFF` (JSON: `[{name, calendarId, priority}]`)
 
 **Optional:** `GOOGLE_CHAT_WEBHOOK_URL`
 

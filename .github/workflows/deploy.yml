@@ -5,10 +5,9 @@ on:
     branches: [main]
 
 env:
-  PROJECT_ID: neconote-tools
   REGION: asia-northeast1
   SERVICE: medical-form
-  IMAGE: asia-northeast1-docker.pkg.dev/neconote-tools/medical-form/app
+  IMAGE: asia-northeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/medical-form/app
 
 jobs:
   deploy:

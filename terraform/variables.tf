@@ -45,8 +45,8 @@ variable "google_service_account_private_key" {
   sensitive   = true
 }
 
-variable "anthropic_api_key" {
-  description = "Anthropic API Key"
+variable "gemini_api_key" {
+  description = "Gemini API Key"
   type        = string
   sensitive   = true
 }

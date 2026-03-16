@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
 const categoryLabels: Record<string, string> = {
   orthopedic: "整形外科",
@@ -12,22 +12,24 @@ async function refineQuery(
   categoryLabel: string
 ): Promise<string> {
   try {
-    const client = new Anthropic();
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 100,
-      system:
-        `あなたは医療機関検索のアシスタントです。ユーザーの曖昧な入力を、Google Places APIで検索するのに適したクエリに変換してください。カテゴリ: ${categoryLabel}。ユーザー入力をそのまま使える場合はそのまま返してください。日本語で返答してください。検索クエリのみを返してください。`,
-      messages: [{ role: "user", content: query }],
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-lite",
+      contents: query,
+      config: {
+        systemInstruction:
+          `あなたは医療機関検索のアシスタントです。ユーザーの曖昧な入力を、Google Places APIで検索するのに適したクエリに変換してください。カテゴリ: ${categoryLabel}。ユーザー入力をそのまま使える場合はそのまま返してください。日本語で返答してください。検索クエリのみを返してください。`,
+        maxOutputTokens: 100,
+      },
     });
 
-    const textBlock = message.content.find((block) => block.type === "text");
-    if (textBlock && textBlock.type === "text") {
-      return textBlock.text.trim();
+    const text = response.text;
+    if (text) {
+      return text.trim();
     }
     return query;
   } catch (error) {
-    console.error("Claude API error, falling back to raw query:", error);
+    console.error("Gemini API error, falling back to raw query:", error);
     return query;
   }
 }
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 1: Refine query with Claude
+    // Step 1: Refine query with Gemini
     const refinedQuery = await refineQuery(query, categoryLabel);
 
     // Step 2: Search with Google Places API (New)
@@ -109,7 +111,7 @@ export async function POST(request: NextRequest) {
       }) => {
         const postalCode =
           place.addressComponents
-            ?.find((c) => c.types.includes("postal_code"))
+            ?.find((c) => c.types?.includes("postal_code"))
             ?.longText ?? "";
         return {
           placeId: place.id,

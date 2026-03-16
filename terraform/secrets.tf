@@ -5,7 +5,7 @@ locals {
     "google-drive-parent-folder-id",
     "google-service-account-email",
     "google-service-account-private-key",
-    "anthropic-api-key",
+    "gemini-api-key",
   ])
 
   optional_secret_keys = toset(concat(
@@ -21,7 +21,7 @@ locals {
     "google-drive-parent-folder-id"      = var.google_drive_parent_folder_id
     "google-service-account-email"       = var.google_service_account_email
     "google-service-account-private-key" = var.google_service_account_private_key
-    "anthropic-api-key"                  = var.anthropic_api_key
+    "gemini-api-key"                     = var.gemini_api_key
     "google-calendar-staff"              = var.google_calendar_staff
     "google-chat-webhook-url"            = var.google_chat_webhook_url
   }

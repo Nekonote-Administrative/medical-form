@@ -13,7 +13,7 @@
   - Google Calendar API（予約管理）
   - Google Maps / Places / Geocoding API（施設検索・地図表示）
   - Google Chat Webhook（予約通知）
-  - Anthropic Claude API（AI検索クエリ最適化・バリデーション）
+  - Google Gemini API（AI検索クエリ最適化・バリデーション）
 
 ---
 
@@ -22,7 +22,7 @@
 - **Node.js** 18.x 以上
 - **npm** / **yarn** / **pnpm** / **bun** のいずれか
 - **Google Cloud Platform (GCP)** アカウント
-- **Anthropic** アカウント（Claude API キー）
+- **Google** アカウント（Gemini API キー）
 
 ---
 
@@ -165,12 +165,12 @@ JSONファイルの中から以下の値を `.env.local` に設定します:
 
 ---
 
-## 5. Anthropic API キーの取得
+## 5. Gemini API キーの取得
 
-1. [Anthropic Console](https://console.anthropic.com/) にアクセス
-2. 「API Keys」を開く
-3. 「Create Key」をクリックして新しいAPIキーを作成
-4. 生成されたキーをコピー（`sk-ant-...` で始まる文字列）
+1. [Google AI Studio](https://aistudio.google.com/) にアクセス
+2. 「Get API key」を開く
+3. 「Create API key」をクリックして新しいAPIキーを作成
+4. 生成されたキーをコピー
 
 ---
 
@@ -201,8 +201,8 @@ GOOGLE_DRIVE_PARENT_FOLDER_ID=1abc...
 GOOGLE_SERVICE_ACCOUNT_EMAIL=your-app@your-project.iam.gserviceaccount.com
 GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQ...\n-----END PRIVATE KEY-----\n"
 
-# Anthropic Claude API キー（手順5で取得）
-ANTHROPIC_API_KEY=sk-ant-api03-...
+# Gemini API キー（手順5で取得）
+GEMINI_API_KEY=AIza...
 
 # Google Calendar スタッフ設定（手順3-2で取得したカレンダーIDを使用）
 GOOGLE_CALENDAR_STAFF='[{"name":"山田","calendarId":"yamada@example.com","priority":1},{"name":"鈴木","calendarId":"suzuki@example.com","priority":2}]'

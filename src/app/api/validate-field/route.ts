@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
-const client = new Anthropic();
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const PROMPTS: Record<string, string> = {
   accidentLocation: `あなたは交通事故の被害者請求に必要なヒアリングフォームの入力サポーターです。
@@ -104,17 +104,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "入力してください" });
     }
 
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 200,
-      system: systemPrompt,
-      messages: [{ role: "user", content: value.trim() }],
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-lite",
+      contents: value.trim(),
+      config: {
+        systemInstruction: systemPrompt,
+        maxOutputTokens: 200,
+        responseMimeType: "application/json",
+      },
     });
 
-    let text =
-      message.content[0].type === "text" ? message.content[0].text : "";
-    text = text.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(response.text ?? "{}");
 
     return NextResponse.json({
       ok: !!parsed.ok,

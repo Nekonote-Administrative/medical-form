@@ -7,7 +7,7 @@ locals {
     GOOGLE_DRIVE_PARENT_FOLDER_ID    = "google-drive-parent-folder-id"
     GOOGLE_SERVICE_ACCOUNT_EMAIL     = "google-service-account-email"
     GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY = "google-service-account-private-key"
-    ANTHROPIC_API_KEY                = "anthropic-api-key"
+    GEMINI_API_KEY                   = "gemini-api-key"
   }
 
   optional_env_secret_map = merge(
