@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
     const treatmentPaymentText =
       basicInfo.treatmentPaymentStatus?.join("、") || "";
 
-    // B2:Z2 の列順に対応するデータ配列
+    // B1:Z1 の列順に対応するデータ配列
     // B=氏名, C=フリガナ, D=性別, E=生年月日, F=郵便番号, G=住所,
     // H=電話番号, I=職業, J=事故日, K=事故場所, L=自車両, M=相手車両,
     // N=事故状況の説明, O=事故形態, P=過失割合通知, Q=過失割合,
@@ -203,39 +203,13 @@ export async function POST(request: NextRequest) {
       basicInfo.remarks,
     ];
 
-    // 新規列のヘッダーを書き込み（固定列のヘッダーはテンプレートに既存）
-    const newColumnHeaders: { range: string; value: string }[] = [
-      { range: "印刷用顧客データ!K1", value: "事故場所" },
-      { range: "印刷用顧客データ!L1", value: "自車両" },
-      { range: "印刷用顧客データ!M1", value: "相手車両" },
-      { range: "印刷用顧客データ!O1", value: "事故形態" },
-      { range: "印刷用顧客データ!P1", value: "過失割合通知" },
-      { range: "印刷用顧客データ!Q1", value: "過失割合" },
-      { range: "印刷用顧客データ!R1", value: "治療費支払状況" },
-      { range: "印刷用顧客データ!U1", value: "自分の保険会社" },
-      { range: "印刷用顧客データ!W1", value: "人身傷害特約" },
-      { range: "印刷用顧客データ!X1", value: "事故証明書種類" },
-      { range: "印刷用顧客データ!Y1", value: "事故写真有無" },
-      { range: "印刷用顧客データ!Z1", value: "備考" },
-    ];
-
-    // ヘッダーとデータを一括書き込み
-    await sheets.spreadsheets.values.batchUpdate({
+    // データを1行目に書き込み（B1:Z1）
+    await sheets.spreadsheets.values.update({
       spreadsheetId,
+      range: "印刷用顧客データ!B1",
+      valueInputOption: "USER_ENTERED",
       requestBody: {
-        valueInputOption: "USER_ENTERED",
-        data: [
-          // 新規列のヘッダー
-          ...newColumnHeaders.map((h) => ({
-            range: h.range,
-            values: [[h.value]],
-          })),
-          // データ行（B2:Z2）
-          {
-            range: "印刷用顧客データ!B2",
-            values: [customerDataRow],
-          },
-        ],
+        values: [customerDataRow],
       },
     });
 
