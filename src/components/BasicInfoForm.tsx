@@ -560,9 +560,6 @@ export default function BasicInfoForm() {
         <h2 className="text-2xl font-normal text-gf-text">
           被害者請求ヒアリングシート
         </h2>
-        <p className="mt-2 text-sm text-gf-text-secondary">
-          一般社団法人 交通事故治療の窓口
-        </p>
         <div className="mt-4 flex items-center justify-between border-t border-gf-border pt-3">
           <span className="text-xs text-gf-error">* は必須項目です</span>
           <button

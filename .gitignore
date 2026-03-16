@@ -6,3 +6,10 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 key/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!terraform.tfvars.example

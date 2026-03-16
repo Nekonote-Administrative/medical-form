@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useFormContext } from "@/lib/form-context";
 
-const EVENT_TITLE = "初回カウンセリング（電話）- 交通事故治療の窓口";
+const EVENT_TITLE = "初回カウンセリング（電話）";
 const EVENT_DESCRIPTION =
-  "一般社団法人 交通事故治療の窓口との初回カウンセリング（お電話）です。";
+  "初回カウンセリング（お電話）です。";
 
 function toICSDateUTC(isoString: string): string {
   // Convert to "YYYYMMDDTHHmmssZ" format
