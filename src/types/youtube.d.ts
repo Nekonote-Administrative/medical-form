@@ -19,6 +19,7 @@ declare namespace YT {
       },
     );
     destroy(): void;
+    getIframe(): HTMLIFrameElement;
   }
 
   interface OnStateChangeEvent {
