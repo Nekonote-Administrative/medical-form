@@ -60,6 +60,28 @@ const CATEGORY_ROW_COUNT: Record<string, number> = {
   pharmacy: 3,
 };
 
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt === maxRetries) throw error;
+      const code = (error as { code?: string }).code;
+      if (
+        code !== "ECONNRESET" &&
+        code !== "ETIMEDOUT" &&
+        code !== "ECONNREFUSED"
+      )
+        throw error;
+      console.warn(
+        `[withRetry] attempt ${attempt + 1} failed with ${code}, retrying...`,
+      );
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  throw new Error("unreachable");
+}
+
 function getAuth() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(
@@ -131,15 +153,19 @@ export async function POST(request: NextRequest) {
     // 1. Google Drive に依頼者名（カタカナ）フォルダを作成
     // -------------------------------------------------------
     const folderName = basicInfo.nameKana;
-    const folder = await drive.files.create({
-      requestBody: {
-        name: folderName,
-        mimeType: "application/vnd.google-apps.folder",
-        parents: [parentFolderId],
-      },
-      fields: "id",
-      supportsAllDrives: true,
-    });
+    const folder = await withRetry(
+      () =>
+        drive.files.create({
+          requestBody: {
+            name: folderName,
+            mimeType: "application/vnd.google-apps.folder",
+            parents: [parentFolderId],
+          },
+          fields: "id",
+          supportsAllDrives: true,
+        }),
+      1,
+    );
     const folderId = folder.data.id;
     if (!folderId) {
       throw new Error("フォルダの作成に失敗しました");
@@ -148,15 +174,17 @@ export async function POST(request: NextRequest) {
     // -------------------------------------------------------
     // 2. テンプレート Spreadsheet をフォルダにコピー
     // -------------------------------------------------------
-    const copiedFile = await drive.files.copy({
-      fileId: templateId,
-      requestBody: {
-        name: `${folderName}_ヒアリングシート`,
-        parents: [folderId],
-      },
-      fields: "id",
-      supportsAllDrives: true,
-    });
+    const copiedFile = await withRetry(() =>
+      drive.files.copy({
+        fileId: templateId,
+        requestBody: {
+          name: `${folderName}_ヒアリングシート`,
+          parents: [folderId],
+        },
+        fields: "id",
+        supportsAllDrives: true,
+      }),
+    );
     const spreadsheetId = copiedFile.data.id;
     if (!spreadsheetId) {
       throw new Error("テンプレートのコピーに失敗しました");
@@ -204,14 +232,16 @@ export async function POST(request: NextRequest) {
     ];
 
     // データを1行目に書き込み（B1:Z1）
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: "印刷用顧客データ!B1",
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [customerDataRow],
-      },
-    });
+    await withRetry(() =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "印刷用顧客データ!B1",
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: [customerDataRow],
+        },
+      }),
+    );
 
     // -------------------------------------------------------
     // 4. 「通院先リスト」タブに施設データを書き込み
@@ -225,54 +255,64 @@ export async function POST(request: NextRequest) {
       rows.push(...facilityRows(key, entries));
     }
 
-    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
+    const spreadsheet = await withRetry(() =>
+      sheets.spreadsheets.get({ spreadsheetId }),
+    );
     const targetSheet = spreadsheet.data.sheets?.find(
       (s) => s.properties?.title === "通院先リスト",
     );
     const sheetId = targetSheet?.properties?.sheetId ?? 0;
 
-    await sheets.spreadsheets.values.clear({
-      spreadsheetId,
-      range: "通院先リスト!A3:G",
-    });
+    await withRetry(() =>
+      sheets.spreadsheets.values.clear({
+        spreadsheetId,
+        range: "通院先リスト!A3:G",
+      }),
+    );
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: "通院先リスト!G2",
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [["プリント"]] },
-    });
+    await withRetry(() =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "通院先リスト!G2",
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [["プリント"]] },
+      }),
+    );
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: "通院先リスト!A3",
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: rows },
-    });
+    await withRetry(() =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "通院先リスト!A3",
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: rows },
+      }),
+    );
 
     const dataRowCount = rows.length;
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            setDataValidation: {
-              range: {
-                sheetId,
-                startRowIndex: 2,
-                endRowIndex: 2 + dataRowCount,
-                startColumnIndex: 6,
-                endColumnIndex: 7,
-              },
-              rule: {
-                condition: { type: "BOOLEAN" },
-                showCustomUi: true,
+    await withRetry(() =>
+      sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              setDataValidation: {
+                range: {
+                  sheetId,
+                  startRowIndex: 2,
+                  endRowIndex: 2 + dataRowCount,
+                  startColumnIndex: 6,
+                  endColumnIndex: 7,
+                },
+                rule: {
+                  condition: { type: "BOOLEAN" },
+                  showCustomUi: true,
+                },
               },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      }),
+    );
 
     return NextResponse.json({
       success: true,
