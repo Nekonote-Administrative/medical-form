@@ -363,11 +363,11 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
       )}
 
       {/* Navigation */}
-      <div className="flex items-center justify-between py-2">
+      <div className="flex items-start justify-between py-2">
         <button
           type="button"
           onClick={goBack}
-          className="rounded bg-white px-5 py-2.5 text-sm font-medium text-gf-purple shadow-sm ring-1 ring-gf-border transition-colors hover:bg-gray-50"
+          className="shrink-0 rounded bg-white px-5 py-2.5 text-sm font-medium text-gf-purple shadow-sm ring-1 ring-gf-border transition-colors hover:bg-gray-50"
         >
           戻る
         </button>
