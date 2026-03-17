@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { FormProvider, useFormContext } from "@/lib/form-context";
 import { CATEGORIES } from "@/types";
 import BasicInfoForm from "@/components/BasicInfoForm";
@@ -35,6 +36,14 @@ function StepContent() {
 function FormContent() {
   const { state } = useFormContext();
   const totalSteps = 7;
+  const prevStepRef = useRef(state.currentStep);
+
+  useEffect(() => {
+    if (prevStepRef.current !== state.currentStep) {
+      prevStepRef.current = state.currentStep;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [state.currentStep]);
 
   return (
     <div className="min-h-screen bg-gf-bg py-6 px-4 sm:py-10">
