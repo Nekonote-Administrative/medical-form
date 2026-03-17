@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useReducer, ReactNode } from "react";
+import React, { createContext, useContext, useReducer, useRef, ReactNode } from "react";
 import {
   BasicInfo,
   FacilityCategory,
@@ -128,15 +128,17 @@ function formReducer(state: FormState, action: FormAction): FormState {
 interface FormContextValue {
   state: FormState;
   dispatch: React.Dispatch<FormAction>;
+  accidentFilesRef: React.MutableRefObject<File[]>;
 }
 
 const FormContext = createContext<FormContextValue | undefined>(undefined);
 
 export function FormProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(formReducer, initialState);
+  const accidentFilesRef = useRef<File[]>([]);
 
   return (
-    <FormContext.Provider value={{ state, dispatch }}>
+    <FormContext.Provider value={{ state, dispatch, accidentFilesRef }}>
       {children}
     </FormContext.Provider>
   );

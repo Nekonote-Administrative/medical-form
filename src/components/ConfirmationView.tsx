@@ -22,8 +22,15 @@ function InfoRow({ label, value }: { label: string; value: string | undefined })
   );
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function ConfirmationView() {
-  const { state, dispatch } = useFormContext();
+  const { state, dispatch, accidentFilesRef } = useFormContext();
+  const accidentFiles = accidentFilesRef.current;
   const playerRef = useRef<HTMLDivElement>(null);
   const ytPlayerRef = useRef<YT.Player | null>(null);
 
@@ -150,6 +157,39 @@ export default function ConfirmationView() {
         <dl className="divide-y divide-gray-100">
           <InfoRow label="交通事故証明書区分" value={bi.accidentCertificateType} />
           <InfoRow label="事故車両写真・映像" value={bi.hasAccidentPhotos} />
+          {accidentFiles.length > 0 && (
+            <div className="py-2">
+              <dt className="text-sm text-gf-text-secondary mb-2">アップロード予定ファイル</dt>
+              <dd>
+                <ul className="space-y-1.5">
+                  {accidentFiles.map((file, idx) => (
+                    <li
+                      key={`${file.name}-${idx}`}
+                      className="flex items-center gap-3 rounded-lg border border-gf-border bg-gf-purple-light/20 px-3 py-2"
+                    >
+                      {file.type.startsWith("image/") ? (
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={file.name}
+                          className="h-8 w-8 shrink-0 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-gray-200 text-[10px] text-gray-500">
+                          動画
+                        </div>
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-sm text-gf-text">
+                        {file.name}
+                      </span>
+                      <span className="shrink-0 text-xs text-gf-text-secondary">
+                        {formatFileSize(file.size)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
+          )}
           <InfoRow label="備考" value={bi.remarks} />
         </dl>
       </div>

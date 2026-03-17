@@ -26,13 +26,15 @@ function groupByDate(slots: TimeSlot[]): Map<string, TimeSlot[]> {
 }
 
 export default function AppointmentScheduler() {
-  const { state, dispatch } = useFormContext();
+  const { state, dispatch, accidentFilesRef } = useFormContext();
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [isBooking, setIsBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [uploadWarning, setUploadWarning] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSlots();
@@ -75,7 +77,43 @@ export default function AppointmentScheduler() {
         throw new Error("スプレッドシートへの送信に失敗しました");
       }
 
-      // 2. スプレッドシート送信成功後、カレンダーに予約を追加
+      const submitData = await submitRes.json();
+
+      // 2. ファイルアップロード（ある場合のみ、失敗してもブロックしない）
+      const files = accidentFilesRef.current;
+      if (files.length > 0) {
+        try {
+          const folderId = submitData.folderId;
+
+          if (folderId) {
+            setUploadStatus("写真・映像をアップロード中...");
+            const formData = new FormData();
+            formData.append("folderId", folderId);
+            for (const file of files) {
+              formData.append("files", file);
+            }
+
+            const uploadRes = await fetch("/api/upload", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (!uploadRes.ok) {
+              setUploadWarning(
+                "写真・映像のアップロードに失敗しました。予約は完了しますが、ファイルは後日お送りください。",
+              );
+            }
+          }
+        } catch {
+          setUploadWarning(
+            "写真・映像のアップロードに失敗しました。予約は完了しますが、ファイルは後日お送りください。",
+          );
+        } finally {
+          setUploadStatus(null);
+        }
+      }
+
+      // 3. カレンダーに予約を追加
       const bookRes = await fetch("/api/calendar/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -232,6 +270,21 @@ export default function AppointmentScheduler() {
         </div>
       )}
 
+      {/* Upload status */}
+      {uploadStatus && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-gf-border bg-white px-6 py-4">
+          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gf-purple border-t-transparent" />
+          <span className="text-sm text-gf-text-secondary">{uploadStatus}</span>
+        </div>
+      )}
+
+      {/* Upload warning */}
+      {uploadWarning && (
+        <div className="mb-3 rounded-lg border border-yellow-300 bg-yellow-50 px-6 py-4 text-sm text-yellow-800">
+          {uploadWarning}
+        </div>
+      )}
+
       {/* Booking error */}
       {bookingError && (
         <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-6 py-4 text-sm text-gf-error">
@@ -255,7 +308,11 @@ export default function AppointmentScheduler() {
           disabled={!selectedSlot || isBooking}
           className="rounded bg-gf-purple px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gf-purple-dark disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isBooking ? "送信中..." : "送信"}
+          {isBooking
+            ? uploadStatus
+              ? "アップロード中..."
+              : "送信中..."
+            : "送信"}
         </button>
       </div>
     </div>

@@ -263,8 +263,17 @@ function CheckboxGroup({
 
 /* ── Main Component ── */
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_COUNT = 10;
+
 export default function BasicInfoForm() {
-  const { state, dispatch } = useFormContext();
+  const { state, dispatch, accidentFilesRef } = useFormContext();
 
   const [form, setForm] = useState<BasicInfo>({
     name: state.basicInfo.name || "",
@@ -294,6 +303,26 @@ export default function BasicInfoForm() {
     hasAccidentPhotos: state.basicInfo.hasAccidentPhotos || "",
     remarks: state.basicInfo.remarks || "",
   });
+
+  // 「その他」自由入力用のローカルstate
+  const OTHER_PREFIX = "その他: ";
+  const isOtherValue = (v: string) =>
+    v === "その他" || v.startsWith(OTHER_PREFIX);
+
+  const initOtherText = (v: string) =>
+    v.startsWith(OTHER_PREFIX) ? v.slice(OTHER_PREFIX.length) : "";
+
+  const [otherInsuranceCompanyText, setOtherInsuranceCompanyText] = useState(
+    initOtherText(state.basicInfo.otherInsuranceCompany || ""),
+  );
+  const [myInsuranceCompanyText, setMyInsuranceCompanyText] = useState(
+    initOtherText(state.basicInfo.myInsuranceCompany || ""),
+  );
+
+  const [accidentFiles, setAccidentFiles] = useState<File[]>(
+    () => accidentFilesRef.current,
+  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -326,6 +355,45 @@ export default function BasicInfoForm() {
     },
     []
   );
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files || []);
+    if (selected.length === 0) return;
+
+    const validFiles: File[] = [];
+    const rejected: string[] = [];
+
+    for (const file of selected) {
+      if (file.size > MAX_FILE_SIZE) {
+        rejected.push(`${file.name} (50MB超)`);
+      } else {
+        validFiles.push(file);
+      }
+    }
+
+    const combined = [...accidentFiles, ...validFiles].slice(0, MAX_FILE_COUNT);
+    setAccidentFiles(combined);
+
+    if (rejected.length > 0) {
+      setErrors((prev) => ({
+        ...prev,
+        accidentFiles: `以下のファイルはサイズ制限を超えています: ${rejected.join(", ")}`,
+      }));
+    } else {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.accidentFiles;
+        return next;
+      });
+    }
+
+    // Reset input so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removeFile(index: number) {
+    setAccidentFiles((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function updateField(field: keyof BasicInfo, value: string | string[]) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -445,6 +513,11 @@ export default function BasicInfoForm() {
     };
 
     dispatch({ type: "SET_BASIC_INFO", payload: trimmed });
+
+    // Sync files to ref for access from other components
+    accidentFilesRef.current =
+      trimmed.hasAccidentPhotos === "はい" ? accidentFiles : [];
+
     setLoading(true);
 
     try {
@@ -600,7 +673,30 @@ export default function BasicInfoForm() {
       {/* ===== 保険情報 ===== */}
       <SectionCard title="保険情報">
         <FieldCard label="相手の保険会社">
-          <SelectInput id="otherInsuranceCompany" value={form.otherInsuranceCompany} onChange={(v) => updateField("otherInsuranceCompany", v)} options={INSURANCE_COMPANY_OPTIONS} />
+          <SelectInput
+            id="otherInsuranceCompany"
+            value={isOtherValue(form.otherInsuranceCompany) ? "その他" : form.otherInsuranceCompany}
+            onChange={(v) => {
+              if (v === "その他") {
+                updateField("otherInsuranceCompany", otherInsuranceCompanyText ? OTHER_PREFIX + otherInsuranceCompanyText : "その他");
+              } else {
+                setOtherInsuranceCompanyText("");
+                updateField("otherInsuranceCompany", v);
+              }
+            }}
+            options={INSURANCE_COMPANY_OPTIONS}
+          />
+          {isOtherValue(form.otherInsuranceCompany) && (
+            <TextInput
+              id="otherInsuranceCompanyText"
+              value={otherInsuranceCompanyText}
+              onChange={(v) => {
+                setOtherInsuranceCompanyText(v);
+                updateField("otherInsuranceCompany", v ? OTHER_PREFIX + v : "その他");
+              }}
+              placeholder="保険会社名を入力"
+            />
+          )}
         </FieldCard>
 
         <FieldCard label="相手の保険担当者連絡先">
@@ -608,7 +704,30 @@ export default function BasicInfoForm() {
         </FieldCard>
 
         <FieldCard label="ご自身の任意保険会社">
-          <SelectInput id="myInsuranceCompany" value={form.myInsuranceCompany} onChange={(v) => updateField("myInsuranceCompany", v)} options={INSURANCE_COMPANY_OPTIONS} />
+          <SelectInput
+            id="myInsuranceCompany"
+            value={isOtherValue(form.myInsuranceCompany) ? "その他" : form.myInsuranceCompany}
+            onChange={(v) => {
+              if (v === "その他") {
+                updateField("myInsuranceCompany", myInsuranceCompanyText ? OTHER_PREFIX + myInsuranceCompanyText : "その他");
+              } else {
+                setMyInsuranceCompanyText("");
+                updateField("myInsuranceCompany", v);
+              }
+            }}
+            options={INSURANCE_COMPANY_OPTIONS}
+          />
+          {isOtherValue(form.myInsuranceCompany) && (
+            <TextInput
+              id="myInsuranceCompanyText"
+              value={myInsuranceCompanyText}
+              onChange={(v) => {
+                setMyInsuranceCompanyText(v);
+                updateField("myInsuranceCompany", v ? OTHER_PREFIX + v : "その他");
+              }}
+              placeholder="保険会社名を入力"
+            />
+          )}
         </FieldCard>
 
         <FieldCard label="弁護士特約">
@@ -627,8 +746,83 @@ export default function BasicInfoForm() {
         </FieldCard>
 
         <FieldCard label="事故車両の写真・映像はありますか？" required error={errors.hasAccidentPhotos}>
-          <RadioGroup name="hasAccidentPhotos" value={form.hasAccidentPhotos} onChange={(v) => updateField("hasAccidentPhotos", v)} options={["はい", "いいえ"]} />
+          <RadioGroup
+            name="hasAccidentPhotos"
+            value={form.hasAccidentPhotos}
+            onChange={(v) => {
+              updateField("hasAccidentPhotos", v);
+              if (v === "いいえ") {
+                setAccidentFiles([]);
+              }
+            }}
+            options={["はい", "いいえ"]}
+          />
         </FieldCard>
+
+        {form.hasAccidentPhotos === "はい" && (
+          <FieldCard
+            label="写真・映像のアップロード"
+            description={`画像または動画ファイルを選択してください（1ファイル50MB以下、最大${MAX_FILE_COUNT}ファイル）`}
+            error={errors.accidentFiles}
+          >
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={accidentFiles.length >= MAX_FILE_COUNT}
+                className="rounded border border-gf-border bg-white px-4 py-2 text-sm text-gf-text transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                ファイルを選択
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {accidentFiles.length > 0 && (
+                <ul className="space-y-2">
+                  {accidentFiles.map((file, idx) => (
+                    <li
+                      key={`${file.name}-${idx}`}
+                      className="flex items-center gap-3 rounded-lg border border-gf-border bg-gf-purple-light/20 px-4 py-2.5"
+                    >
+                      {file.type.startsWith("image/") ? (
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={file.name}
+                          className="h-10 w-10 shrink-0 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-gray-200 text-xs text-gray-500">
+                          動画
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-gf-text">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-gf-text-secondary">
+                          {formatFileSize(file.size)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(idx)}
+                        className="shrink-0 text-sm text-gf-error hover:underline"
+                      >
+                        削除
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </FieldCard>
+        )}
 
         <FieldCard label="備考欄">
           <TextArea id="remarks" value={form.remarks} onChange={(v) => updateField("remarks", v)} placeholder="回答を入力" />
