@@ -16,3 +16,5 @@ key/
 *.tfvars*
 !terraform.tfvars.example
 *.swp
+
+.playwright-mcp

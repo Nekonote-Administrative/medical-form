@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         return {
           placeId: place.id,
           name: place.displayName.text,
-          address: place.formattedAddress,
+          address: place.formattedAddress.replace(/^日本、\s*〒\d{3}-?\d{4}\s*/, ""),
           postalCode,
           phoneNumber: place.nationalPhoneNumber ?? "",
           lat: place.location.latitude,
