@@ -13,6 +13,10 @@ locals {
   optional_env_secret_map = merge(
     var.enable_google_calendar_staff ? { GOOGLE_CALENDAR_STAFF = "google-calendar-staff" } : {},
     var.enable_google_chat_webhook ? { GOOGLE_CHAT_WEBHOOK_URL = "google-chat-webhook-url" } : {},
+    var.enable_line_crm_notification ? {
+      LINE_CRM_WORKER_URL = "line-crm-worker-url"
+      LINE_CRM_API_KEY    = "line-crm-api-key"
+    } : {},
   )
 
   all_env_secret_map = merge(local.env_secret_map, local.optional_env_secret_map)

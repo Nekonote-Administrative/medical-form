@@ -76,3 +76,23 @@ variable "google_chat_webhook_url" {
   default     = ""
   sensitive   = true
 }
+
+variable "enable_line_crm_notification" {
+  description = "ヒアリングフォーム送信時に line-crm-worker へ通知するか"
+  type        = bool
+  default     = false
+}
+
+variable "line_crm_worker_url" {
+  description = "line-crm-worker のベースURL (例: https://line-crm-worker.teramoto-4e9.workers.dev)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "line_crm_api_key" {
+  description = "line-crm-worker の API_KEY (Bearer トークン)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
