@@ -14,13 +14,16 @@ export interface BookedAppointment {
   label: string;
 }
 
-interface FormState {
+export interface FormState {
   currentStep: number;
   basicInfo: BasicInfo;
   facilities: Record<FacilityCategory, FacilityEntry[]>;
+  facilityNotApplicable: Record<FacilityCategory, boolean>;
   addressGeoLocation: GeoLocation | null;
   accidentGeoLocation: GeoLocation | null;
   bookedAppointment: BookedAppointment | null;
+  clinicId: string | null;
+  clinicName: string | null;
 }
 
 type FormAction =
@@ -32,50 +35,91 @@ type FormAction =
         accidentGeoLocation?: GeoLocation | null;
       };
     }
+  | {
+      type: "SET_FACILITY_NOT_APPLICABLE";
+      payload: { category: FacilityCategory; value: boolean };
+    }
   | { type: "ADD_FACILITY"; payload: { category: FacilityCategory; entry: FacilityEntry } }
   | { type: "REMOVE_FACILITY"; payload: { category: FacilityCategory; id: string } }
   | { type: "SET_STEP"; payload: number }
   | { type: "SET_BOOKED_APPOINTMENT"; payload: BookedAppointment }
   | { type: "RESET" };
 
-const initialState: FormState = {
+const defaultBasicInfo: BasicInfo = {
+  name: "",
+  nameKana: "",
+  gender: "",
+  birthDate: "",
+  postalCode: "",
+  address: "",
+  phoneNumber: "",
+  occupation: "",
+  accidentDate: "",
+  accidentLocation: "",
+  yourVehicle: "",
+  otherVehicle: "",
+  accidentType: "",
+  accidentDescription: "",
+  faultRatioNotified: "",
+  faultRatio: "",
+  treatmentPaymentStatus: [],
+  otherInsuranceCompany: "",
+  otherInsuranceContact: "",
+  myInsuranceCompany: "",
+  lawyerSpecialClause: "",
+  personalInjuryClause: "",
+  accidentCertificateType: "",
+  hasAccidentPhotos: "",
+  remarks: "",
+};
+
+const defaultState: FormState = {
   currentStep: 0,
-  basicInfo: {
-    name: "",
-    nameKana: "",
-    gender: "",
-    birthDate: "",
-    postalCode: "",
-    address: "",
-    phoneNumber: "",
-    occupation: "",
-    accidentDate: "",
-    accidentLocation: "",
-    yourVehicle: "",
-    otherVehicle: "",
-    accidentType: "",
-    accidentDescription: "",
-    faultRatioNotified: "",
-    faultRatio: "",
-    treatmentPaymentStatus: [],
-    otherInsuranceCompany: "",
-    otherInsuranceContact: "",
-    myInsuranceCompany: "",
-    lawyerSpecialClause: "",
-    personalInjuryClause: "",
-    accidentCertificateType: "",
-    hasAccidentPhotos: "",
-    remarks: "",
-  },
+  basicInfo: defaultBasicInfo,
   facilities: {
     orthopedic: [],
     osteopathic: [],
     pharmacy: [],
   },
+  facilityNotApplicable: {
+    orthopedic: false,
+    osteopathic: false,
+    pharmacy: false,
+  },
   addressGeoLocation: null,
   accidentGeoLocation: null,
   bookedAppointment: null,
+  clinicId: null,
+  clinicName: null,
 };
+
+export interface FormInitialState {
+  basicInfo?: Partial<BasicInfo>;
+  facilities?: Partial<Record<FacilityCategory, FacilityEntry[]>>;
+  facilityNotApplicable?: Partial<Record<FacilityCategory, boolean>>;
+  clinicId?: string | null;
+  clinicName?: string | null;
+}
+
+function buildInitialState(initial?: FormInitialState): FormState {
+  if (!initial) return defaultState;
+  return {
+    ...defaultState,
+    basicInfo: { ...defaultBasicInfo, ...(initial.basicInfo ?? {}) },
+    facilities: {
+      orthopedic: initial.facilities?.orthopedic ?? [],
+      osteopathic: initial.facilities?.osteopathic ?? [],
+      pharmacy: initial.facilities?.pharmacy ?? [],
+    },
+    facilityNotApplicable: {
+      orthopedic: initial.facilityNotApplicable?.orthopedic ?? false,
+      osteopathic: initial.facilityNotApplicable?.osteopathic ?? false,
+      pharmacy: initial.facilityNotApplicable?.pharmacy ?? false,
+    },
+    clinicId: initial.clinicId ?? null,
+    clinicName: initial.clinicName ?? null,
+  };
+}
 
 function formReducer(state: FormState, action: FormAction): FormState {
   switch (action.type) {
@@ -93,6 +137,14 @@ function formReducer(state: FormState, action: FormAction): FormState {
             ? action.payload.accidentGeoLocation
             : state.accidentGeoLocation,
       };
+    case "SET_FACILITY_NOT_APPLICABLE":
+      return {
+        ...state,
+        facilityNotApplicable: {
+          ...state.facilityNotApplicable,
+          [action.payload.category]: action.payload.value,
+        },
+      };
     case "ADD_FACILITY":
       return {
         ...state,
@@ -102,6 +154,10 @@ function formReducer(state: FormState, action: FormAction): FormState {
             ...state.facilities[action.payload.category],
             action.payload.entry,
           ],
+        },
+        facilityNotApplicable: {
+          ...state.facilityNotApplicable,
+          [action.payload.category]: false,
         },
       };
     case "REMOVE_FACILITY":
@@ -119,7 +175,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
     case "SET_BOOKED_APPOINTMENT":
       return { ...state, bookedAppointment: action.payload };
     case "RESET":
-      return initialState;
+      return { ...defaultState, clinicId: state.clinicId, clinicName: state.clinicName };
     default:
       return state;
   }
@@ -133,8 +189,18 @@ interface FormContextValue {
 
 const FormContext = createContext<FormContextValue | undefined>(undefined);
 
-export function FormProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(formReducer, initialState);
+export function FormProvider({
+  children,
+  initialState,
+}: {
+  children: ReactNode;
+  initialState?: FormInitialState;
+}) {
+  const [state, dispatch] = useReducer(
+    formReducer,
+    initialState,
+    buildInitialState,
+  );
   const accidentFilesRef = useRef<File[]>([]);
 
   return (

@@ -28,6 +28,12 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatJapaneseDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  if (!year || !month || !day) return isoDate;
+  return `${year}年${month}月${day}日`;
+}
+
 export default function ConfirmationView() {
   const { state, dispatch, accidentFilesRef } = useFormContext();
   const accidentFiles = accidentFilesRef.current;
@@ -106,7 +112,7 @@ export default function ConfirmationView() {
           <InfoRow label="氏名" value={bi.name} />
           <InfoRow label="フリガナ" value={bi.nameKana} />
           <InfoRow label="性別" value={bi.gender} />
-          <InfoRow label="生年月日" value={bi.birthDate} />
+          <InfoRow label="生年月日" value={formatJapaneseDate(bi.birthDate)} />
           <InfoRow label="郵便番号" value={bi.postalCode} />
           <InfoRow label="住所" value={bi.address} />
           <InfoRow label="電話番号" value={bi.phoneNumber} />

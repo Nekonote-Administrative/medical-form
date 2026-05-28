@@ -58,8 +58,8 @@ interface BusyPeriod {
 
 const DAY_NAMES = ["日", "月", "火", "水", "木", "金", "土"];
 
-const BUSINESS_START_HOUR = 10;
-const BUSINESS_END_HOUR = 17;
+const BUSINESS_START_HOUR = 9;
+const BUSINESS_END_HOUR = 21;
 const SLOT_DURATION_HOURS = 1;
 
 async function fetchBusyPeriods(
@@ -120,42 +120,16 @@ export async function GET() {
     const now = new Date();
     const jstOffset = 9 * 60 * 60 * 1000;
     const timeMin = now.toISOString();
-    const lookAheadDays = 14;
+    const lookAheadDays = 7;
     const timeMax = new Date(
       now.getTime() + lookAheadDays * 24 * 60 * 60 * 1000,
     ).toISOString();
 
-    // Fetch holidays and all staff calendars in parallel
-    const holidayCalendarId = "ja.japanese#holiday@group.v.calendar.google.com";
-
-    const [holidayResult, ...staffBusyResults] = await Promise.allSettled([
-      calendar.events
-        .list({
-          calendarId: holidayCalendarId,
-          timeMin,
-          timeMax,
-          singleEvents: true,
-        })
-        .then((res) => {
-          const dates = new Set<string>();
-          for (const event of res.data.items || []) {
-            if (event.start?.date) dates.add(event.start.date);
-          }
-          return dates;
-        }),
-      ...staffList.map((staff) =>
+    const staffBusyResults = await Promise.allSettled(
+      staffList.map((staff) =>
         fetchBusyPeriods(calendar, staff.calendarId, timeMin, timeMax),
       ),
-    ]);
-
-    const holidayDates: Set<string> =
-      holidayResult.status === "fulfilled"
-        ? holidayResult.value
-        : new Set();
-
-    if (holidayResult.status === "rejected") {
-      console.warn("Could not fetch holidays calendar:", holidayResult.reason);
-    }
+    );
 
     // Map staff index to busy periods
     const staffBusy: Map<number, BusyPeriod[]> = new Map();
@@ -175,19 +149,10 @@ export async function GET() {
 
     // Generate available slots
     const slots: TimeSlot[] = [];
-    let businessDaysFound = 0;
-
-    for (let d = 0; d < lookAheadDays && businessDaysFound < 10; d++) {
+    for (let d = 0; d < lookAheadDays; d++) {
       const dayDate = new Date(now.getTime() + d * 24 * 60 * 60 * 1000);
       const dayJST = new Date(dayDate.getTime() + jstOffset);
       const dayOfWeek = dayJST.getUTCDay();
-
-      if (dayOfWeek === 0 || dayOfWeek === 6) continue;
-
-      const dateStr = `${dayJST.getUTCFullYear()}-${String(dayJST.getUTCMonth() + 1).padStart(2, "0")}-${String(dayJST.getUTCDate()).padStart(2, "0")}`;
-      if (holidayDates.has(dateStr)) continue;
-
-      businessDaysFound++;
 
       for (
         let hour = BUSINESS_START_HOUR;

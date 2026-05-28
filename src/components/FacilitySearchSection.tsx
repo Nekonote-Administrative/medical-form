@@ -24,10 +24,10 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
   const [searchError, setSearchError] = useState<string | null>(null);
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualName, setManualName] = useState("");
-  const [notApplicable, setNotApplicable] = useState(false);
   const [hoveredResultIndex, setHoveredResultIndex] = useState<number | null>(null);
 
   const facilities = state.facilities[category] ?? [];
+  const notApplicable = state.facilityNotApplicable[category] ?? false;
 
   const getSearchCenter = useCallback((): { lat: number; lng: number } | null => {
     const addr = state.addressGeoLocation;
@@ -117,6 +117,13 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
     dispatch({ type: "REMOVE_FACILITY", payload: { category, id } });
   };
 
+  const setNotApplicable = (value: boolean) => {
+    dispatch({
+      type: "SET_FACILITY_NOT_APPLICABLE",
+      payload: { category, value },
+    });
+  };
+
   const canProceed = notApplicable || facilities.length > 0;
 
   const goBack = () => dispatch({ type: "SET_STEP", payload: state.currentStep - 1 });
@@ -185,7 +192,7 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
           <input
             type="checkbox"
             checked={notApplicable}
-            onChange={() => setNotApplicable((prev) => !prev)}
+            onChange={() => setNotApplicable(!notApplicable)}
             className="sr-only"
           />
           <span

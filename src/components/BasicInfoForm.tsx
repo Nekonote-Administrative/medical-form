@@ -269,6 +269,79 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+interface BirthDateParts {
+  year: string;
+  month: string;
+  day: string;
+}
+
+function parseBirthDate(value: string): BirthDateParts {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return { year: "", month: "", day: "" };
+  return {
+    year: match[1],
+    month: String(Number(match[2])),
+    day: String(Number(match[3])),
+  };
+}
+
+function getDaysInMonth(year: string, month: string) {
+  const yearNum = Number(year);
+  const monthNum = Number(month);
+  if (!Number.isInteger(monthNum) || monthNum < 1 || monthNum > 12) return 31;
+  if (!Number.isInteger(yearNum) || year.length !== 4) {
+    return new Date(2024, monthNum, 0).getDate();
+  }
+  return new Date(yearNum, monthNum, 0).getDate();
+}
+
+function composeBirthDate(parts: BirthDateParts): string | null {
+  if (!/^\d{4}$/.test(parts.year) || !parts.month || !parts.day) return null;
+  const month = Number(parts.month);
+  const day = Number(parts.day);
+  const maxDay = getDaysInMonth(parts.year, parts.month);
+  if (month < 1 || month > 12 || day < 1 || day > maxDay) return null;
+  return `${parts.year}-${String(month).padStart(2, "0")}-${String(day).padStart(
+    2,
+    "0",
+  )}`;
+}
+
+function validateBirthDateParts(parts: BirthDateParts): string | null {
+  if (!parts.year.trim()) return "年を入力してください";
+  if (!/^\d{4}$/.test(parts.year)) return "西暦4桁で入力してください";
+  if (!parts.month) return "月を選択してください";
+  if (!parts.day) return "日を選択してください";
+
+  const iso = composeBirthDate(parts);
+  if (!iso) return "存在する日付を選択してください";
+
+  const birthDate = new Date(`${iso}T00:00:00+09:00`);
+  const today = new Date();
+  if (birthDate.getTime() > today.getTime()) return "未来日は入力できません";
+
+  const age = calculateAge(iso);
+  if (age > 120) return "生年月日を確認してください";
+  return null;
+}
+
+function calculateAge(isoDate: string): number {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const monthDiff = today.getMonth() + 1 - month;
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < day)) {
+    age -= 1;
+  }
+  return age;
+}
+
+function formatJapaneseDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  if (!year || !month || !day) return isoDate;
+  return `${year}年${month}月${day}日`;
+}
+
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_FILE_COUNT = 10;
 
@@ -303,6 +376,9 @@ export default function BasicInfoForm() {
     hasAccidentPhotos: state.basicInfo.hasAccidentPhotos || "",
     remarks: state.basicInfo.remarks || "",
   });
+  const [birthDateParts, setBirthDateParts] = useState<BirthDateParts>(() =>
+    parseBirthDate(state.basicInfo.birthDate || ""),
+  );
 
   // 「その他」自由入力用のローカルstate
   const OTHER_PREFIX = "その他: ";
@@ -454,12 +530,33 @@ export default function BasicInfoForm() {
     lookupPostalCode(value);
   }
 
+  function updateBirthDatePart(field: keyof BirthDateParts, value: string) {
+    const normalizedValue =
+      field === "year" ? value.replace(/\D/g, "").slice(0, 4) : value;
+    const next = { ...birthDateParts, [field]: normalizedValue };
+    const maxDay = getDaysInMonth(next.year, next.month);
+    if (next.day && Number(next.day) > maxDay) {
+      next.day = "";
+    }
+
+    const isoDate = composeBirthDate(next);
+    setBirthDateParts(next);
+    setForm((current) => ({ ...current, birthDate: isoDate ?? "" }));
+    setErrors((current) => {
+      if (!current.birthDate) return current;
+      const nextErrors = { ...current };
+      delete nextErrors.birthDate;
+      return nextErrors;
+    });
+  }
+
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
     if (!form.name.trim()) newErrors.name = "この質問は必須です";
     if (!form.nameKana.trim()) newErrors.nameKana = "この質問は必須です";
     if (!form.gender) newErrors.gender = "この質問は必須です";
-    if (!form.birthDate) newErrors.birthDate = "この質問は必須です";
+    const birthDateError = validateBirthDateParts(birthDateParts);
+    if (birthDateError) newErrors.birthDate = birthDateError;
     if (!form.postalCode.trim()) newErrors.postalCode = "この質問は必須です";
     if (!form.address.trim()) newErrors.address = "この質問は必須です";
     if (!form.phoneNumber.trim()) newErrors.phoneNumber = "この質問は必須です";
@@ -498,10 +595,12 @@ export default function BasicInfoForm() {
 
     if (!validate()) return;
 
+    const normalizedBirthDate = composeBirthDate(birthDateParts) ?? form.birthDate;
     const trimmed: BasicInfo = {
       ...form,
       name: form.name.trim(),
       nameKana: form.nameKana.trim(),
+      birthDate: normalizedBirthDate,
       postalCode: form.postalCode.trim(),
       address: form.address.trim(),
       phoneNumber: form.phoneNumber.trim(),
@@ -577,13 +676,75 @@ export default function BasicInfoForm() {
         </FieldCard>
 
         <FieldCard label="生年月日" required error={errors.birthDate}>
-          <input
-            id="birthDate"
-            type="date"
-            value={form.birthDate}
-            onChange={(e) => updateField("birthDate", e.target.value)}
-            className="border-b border-gf-border bg-transparent py-2 text-sm text-gf-text outline-none transition-colors focus:border-b-2 focus:border-gf-input-focus"
-          />
+          <div className="grid grid-cols-[1fr_88px_88px] gap-2">
+            <label className="block">
+              <span className="mb-1 block text-xs text-gf-text-secondary">
+                年
+              </span>
+              <input
+                id="birthYear"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                value={birthDateParts.year}
+                onChange={(e) => updateBirthDatePart("year", e.target.value)}
+                placeholder="1985"
+                className="w-full rounded border border-gf-border bg-white px-3 py-2 text-sm text-gf-text outline-none transition-colors placeholder:text-gray-400 focus:border-gf-input-focus focus:ring-1 focus:ring-gf-input-focus"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-gf-text-secondary">
+                月
+              </span>
+              <select
+                id="birthMonth"
+                value={birthDateParts.month}
+                onChange={(e) => updateBirthDatePart("month", e.target.value)}
+                className={`w-full rounded border border-gf-border bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-gf-input-focus focus:ring-1 focus:ring-gf-input-focus ${
+                  birthDateParts.month ? "text-gf-text" : "text-gray-400"
+                }`}
+              >
+                <option value="">月</option>
+                {Array.from({ length: 12 }, (_, i) => String(i + 1)).map(
+                  (month) => (
+                    <option key={month} value={month}>
+                      {month}月
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-gf-text-secondary">
+                日
+              </span>
+              <select
+                id="birthDay"
+                value={birthDateParts.day}
+                onChange={(e) => updateBirthDatePart("day", e.target.value)}
+                className={`w-full rounded border border-gf-border bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-gf-input-focus focus:ring-1 focus:ring-gf-input-focus ${
+                  birthDateParts.day ? "text-gf-text" : "text-gray-400"
+                }`}
+              >
+                <option value="">日</option>
+                {Array.from(
+                  { length: getDaysInMonth(birthDateParts.year, birthDateParts.month) },
+                  (_, i) => String(i + 1),
+                ).map((day) => (
+                  <option key={day} value={day}>
+                    {day}日
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {form.birthDate && !validateBirthDateParts(birthDateParts) && (
+            <p className="mt-3 text-xs text-gf-text-secondary">
+              {formatJapaneseDate(form.birthDate)} 生まれ（現在
+              {calculateAge(form.birthDate)}歳）
+            </p>
+          )}
         </FieldCard>
 
         <FieldCard label="郵便番号" required error={errors.postalCode}>
@@ -847,7 +1008,8 @@ export default function BasicInfoForm() {
         </button>
         <button
           type="reset"
-          onClick={() =>
+          onClick={() => {
+            setBirthDateParts({ year: "", month: "", day: "" });
             setForm({
               name: "", nameKana: "", gender: "", birthDate: "", postalCode: "",
               address: "", phoneNumber: "", occupation: "", accidentDate: "",
@@ -858,8 +1020,8 @@ export default function BasicInfoForm() {
               myInsuranceCompany: "", lawyerSpecialClause: "",
               personalInjuryClause: "", accidentCertificateType: "",
               hasAccidentPhotos: "", remarks: "",
-            })
-          }
+            });
+          }}
           className="text-sm font-medium text-gf-purple hover:underline"
         >
           フォームをクリア

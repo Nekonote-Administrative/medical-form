@@ -11,18 +11,82 @@ interface TimeSlot {
   staffName: string;
 }
 
-// Group slots by date for display
-function groupByDate(slots: TimeSlot[]): Map<string, TimeSlot[]> {
+interface CalendarDay {
+  key: string;
+  label: string;
+  slots: TimeSlot[];
+}
+
+const DAY_NAMES = ["日", "月", "火", "水", "木", "金", "土"];
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const INITIAL_VISIBLE_DAYS = 3;
+const EXPANDED_VISIBLE_DAYS = 7;
+
+function getJstParts(date: Date) {
+  const jstDate = new Date(date.getTime() + JST_OFFSET_MS);
+  return {
+    year: jstDate.getUTCFullYear(),
+    month: jstDate.getUTCMonth() + 1,
+    date: jstDate.getUTCDate(),
+    day: jstDate.getUTCDay(),
+  };
+}
+
+function formatDateKey(parts: { year: number; month: number; date: number }) {
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(
+    parts.date,
+  ).padStart(2, "0")}`;
+}
+
+function getCalendarDay(offsetDays: number) {
+  const nowJst = new Date(Date.now() + JST_OFFSET_MS);
+  const day = new Date(
+    Date.UTC(
+      nowJst.getUTCFullYear(),
+      nowJst.getUTCMonth(),
+      nowJst.getUTCDate() + offsetDays,
+    ),
+  );
+  const parts = {
+    year: day.getUTCFullYear(),
+    month: day.getUTCMonth() + 1,
+    date: day.getUTCDate(),
+    day: day.getUTCDay(),
+  };
+  return {
+    key: formatDateKey(parts),
+    label: `${parts.month}/${parts.date}(${DAY_NAMES[parts.day]})`,
+  };
+}
+
+function getSlotDateKey(slot: TimeSlot) {
+  return formatDateKey(getJstParts(new Date(slot.start)));
+}
+
+function getSlotTimeLabel(slot: TimeSlot) {
+  return slot.label.split(" ").slice(1).join(" ");
+}
+
+function buildCalendarDays(
+  slots: TimeSlot[],
+  visibleDays: number,
+): CalendarDay[] {
   const groups = new Map<string, TimeSlot[]>();
   for (const slot of slots) {
-    // Extract date part from label (e.g. "3/16(月)")
-    const dateKey = slot.label.split(" ")[0];
+    const dateKey = getSlotDateKey(slot);
     if (!groups.has(dateKey)) {
       groups.set(dateKey, []);
     }
     groups.get(dateKey)!.push(slot);
   }
-  return groups;
+
+  return Array.from({ length: visibleDays }, (_, index) => {
+    const day = getCalendarDay(index);
+    return {
+      ...day,
+      slots: groups.get(day.key) ?? [],
+    };
+  });
 }
 
 export default function AppointmentScheduler() {
@@ -35,6 +99,7 @@ export default function AppointmentScheduler() {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [uploadWarning, setUploadWarning] = useState<string | null>(null);
+  const [visibleDays, setVisibleDays] = useState(INITIAL_VISIBLE_DAYS);
 
   useEffect(() => {
     fetchSlots();
@@ -70,6 +135,8 @@ export default function AppointmentScheduler() {
         body: JSON.stringify({
           basicInfo: state.basicInfo,
           facilities: state.facilities,
+          clinicId: state.clinicId,
+          clinicName: state.clinicName,
         }),
       });
 
@@ -159,7 +226,8 @@ export default function AppointmentScheduler() {
 
   const handleBack = () => dispatch({ type: "SET_STEP", payload: 4 });
 
-  const grouped = groupByDate(slots);
+  const calendarDays = buildCalendarDays(slots, visibleDays);
+  const canShowMoreDays = visibleDays < EXPANDED_VISIBLE_DAYS;
 
   return (
     <div>
@@ -171,10 +239,10 @@ export default function AppointmentScheduler() {
             カウンセリング日程の選択
           </h2>
           <p className="mt-2 text-sm text-gf-text-secondary">
-            初回カウンセリング（お電話）の日程を選択し、「送信」を押してください。
+            まずは直近3日以内の日程からお選びください。ご都合が合わない場合は、下のボタンから先の日程を表示できます。
           </p>
           <p className="mt-1 text-xs text-gray-400">
-            対応時間: 平日 10:00〜17:00（土日祝を除く）
+            対応時間: 全日 9:00〜21:00
           </p>
         </div>
       </div>
@@ -217,45 +285,51 @@ export default function AppointmentScheduler() {
               再読み込み
             </button>
           </div>
-        ) : slots.length === 0 ? (
-          <div className="py-6 text-center">
-            <p className="text-sm text-gf-text-secondary">
-              現在、予約可能な時間枠がありません。
-            </p>
-            <p className="mt-1 text-xs text-gray-400">
-              後日改めてご確認ください。
-            </p>
-          </div>
         ) : (
           <div className="space-y-4">
-            {Array.from(grouped.entries()).map(([dateKey, dateSlots]) => (
-              <div key={dateKey}>
+            {calendarDays.map((day) => (
+              <div key={day.key}>
                 <h3 className="mb-2 text-sm font-medium text-gf-text">
-                  {dateKey}
+                  {day.label}
                 </h3>
-                <div className="flex flex-wrap gap-2">
-                  {dateSlots.map((slot) => {
-                    const timeLabel = slot.label.split(" ")[1];
-                    const isSelected =
-                      selectedSlot?.start === slot.start;
-                    return (
-                      <button
-                        key={slot.start}
-                        type="button"
-                        onClick={() => setSelectedSlot(slot)}
-                        className={`rounded-lg border px-4 py-2.5 text-sm transition-colors ${
-                          isSelected
-                            ? "border-gf-purple bg-gf-purple text-white"
-                            : "border-gf-border bg-white text-gf-text hover:border-gf-purple hover:bg-gf-purple-light"
-                        }`}
-                      >
-                        {timeLabel}
-                      </button>
-                    );
-                  })}
-                </div>
+                {day.slots.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-gf-border bg-gray-50 px-4 py-3 text-sm text-gf-text-secondary">
+                    この日の受付可能枠はありません
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {day.slots.map((slot) => {
+                      const timeLabel = getSlotTimeLabel(slot);
+                      const isSelected =
+                        selectedSlot?.start === slot.start;
+                      return (
+                        <button
+                          key={slot.start}
+                          type="button"
+                          onClick={() => setSelectedSlot(slot)}
+                          className={`rounded-lg border px-4 py-2.5 text-sm transition-colors ${
+                            isSelected
+                              ? "border-gf-purple bg-gf-purple text-white"
+                              : "border-gf-border bg-white text-gf-text hover:border-gf-purple hover:bg-gf-purple-light"
+                          }`}
+                        >
+                          {timeLabel}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
+            {canShowMoreDays && (
+              <button
+                type="button"
+                onClick={() => setVisibleDays(EXPANDED_VISIBLE_DAYS)}
+                className="w-full rounded border border-gf-purple bg-white px-4 py-3 text-sm font-medium text-gf-purple transition-colors hover:bg-gf-purple-light"
+              >
+                もっと先の予定を見る
+              </button>
+            )}
           </div>
         )}
       </div>
