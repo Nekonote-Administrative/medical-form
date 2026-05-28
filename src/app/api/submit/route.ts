@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getAuth, withRetry } from "@/lib/google-auth";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { safeSheetRow, safeSheetValue } from "@/lib/sheet-safety";
+import { createUploadToken } from "@/lib/upload-token";
 
 interface FacilityEntry {
   id: string;
@@ -61,6 +64,8 @@ const CATEGORY_ROW_COUNT: Record<string, number> = {
   pharmacy: 3,
 };
 
+const MAX_SUBMIT_BODY_SIZE = 1024 * 1024;
+
 function facilityRows(
   categoryKey: string,
   entries: FacilityEntry[],
@@ -69,7 +74,7 @@ function facilityRows(
   const rows: string[][] = [];
   for (let i = 0; i < rowCount; i++) {
     const entry = entries[i];
-    rows.push([
+    rows.push(safeSheetRow([
       i === 0 ? CATEGORY_LABELS[categoryKey] ?? categoryKey : "",
       entry?.facilityName ?? "",
       entry?.facilityPostalCode ?? "",
@@ -77,12 +82,28 @@ function facilityRows(
       entry?.facilityPhoneNumber ?? "",
       "", // 備考
       "TRUE", // プリント（チェックボックス）
-    ]);
+    ]));
   }
   return rows;
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit(request, "submit", {
+    limit: 10,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit);
+  }
+
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > MAX_SUBMIT_BODY_SIZE) {
+    return NextResponse.json(
+      { error: "送信データが大きすぎます" },
+      { status: 413 },
+    );
+  }
+
   try {
     const body: SubmitBody = await request.json();
     const { basicInfo, facilities } = body;
@@ -162,7 +183,7 @@ export async function POST(request: NextRequest) {
     // R=治療費支払状況, S=相手保険会社(固定), T=相手保険会社の連絡先(固定),
     // U=自分の保険会社, V=弁護士特約(固定), W=人身傷害特約,
     // X=事故証明書種類, Y=事故写真有無, Z=備考
-    const customerDataRow = [
+    const customerDataRow = safeSheetRow([
       basicInfo.name,
       basicInfo.nameKana,
       basicInfo.gender,
@@ -188,7 +209,7 @@ export async function POST(request: NextRequest) {
       basicInfo.accidentCertificateType,
       basicInfo.hasAccidentPhotos,
       basicInfo.remarks,
-    ];
+    ]);
 
     // データを1行目に書き込み（B1:Z1）
     await withRetry(() =>
@@ -234,7 +255,7 @@ export async function POST(request: NextRequest) {
         spreadsheetId,
         range: "通院先リスト!G2",
         valueInputOption: "USER_ENTERED",
-        requestBody: { values: [["プリント"]] },
+        requestBody: { values: [[safeSheetValue("プリント")]] },
       }),
     );
 
@@ -276,7 +297,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       spreadsheetId,
-      folderId,
+      uploadToken: createUploadToken(folderId),
     });
   } catch (error) {
     console.error("Submit error:", error);

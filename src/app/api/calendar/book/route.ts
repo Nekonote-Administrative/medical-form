@@ -1,25 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
+import {
+  generateAvailableSlots,
+  getCalendarAuth,
+} from "@/lib/calendar-slots";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
-function getAuth(scopes: string[]) {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(
-    /\\n/g,
-    "\n",
-  );
-  if (privateKey && !privateKey.includes("-----BEGIN")) {
-    privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----\n`;
-  }
-  if (!email || !privateKey) {
-    throw new Error("Google credentials not configured");
-  }
-  return new google.auth.JWT(email, undefined, privateKey, scopes);
+interface BookBody {
+  start: string;
+  end: string;
+  name: string;
+  phoneNumber?: string;
+}
+
+function normalizeIsoDate(value: unknown) {
+  if (typeof value !== "string") return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function cleanText(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
 }
 
 async function notifyGoogleChat(message: string) {
   const webhookUrl = process.env.GOOGLE_CHAT_WEBHOOK_URL;
   if (!webhookUrl) {
-    console.warn("GOOGLE_CHAT_WEBHOOK_URL is not configured, skipping notification");
+    console.warn(
+      "GOOGLE_CHAT_WEBHOOK_URL is not configured, skipping notification",
+    );
     return;
   }
 
@@ -34,35 +45,52 @@ async function notifyGoogleChat(message: string) {
   }
 }
 
-interface BookBody {
-  start: string;
-  end: string;
-  name: string;
-  phoneNumber: string;
-  calendarId: string;
-  staffName: string;
-}
-
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit(request, "calendar-book", {
+    limit: 10,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit);
+  }
+
   try {
     const body: BookBody = await request.json();
-    const { start, end, name, phoneNumber, calendarId, staffName } = body;
+    const start = normalizeIsoDate(body.start);
+    const end = normalizeIsoDate(body.end);
+    const name = cleanText(body.name, 80);
+    const phoneNumber = cleanText(body.phoneNumber, 40);
 
-    if (!start || !end || !name || !calendarId) {
+    if (!start || !end || !name) {
       return NextResponse.json(
         { error: "必要なデータが不足しています" },
         { status: 400 },
       );
     }
 
-    const auth = getAuth([
+    const availableSlots = await generateAvailableSlots([
       "https://www.googleapis.com/auth/calendar",
     ]);
+    const selectedSlot = availableSlots.find(
+      (slot) => slot.start === start && slot.end === end,
+    );
+
+    if (!selectedSlot) {
+      return NextResponse.json(
+        {
+          error:
+            "この時間枠は既に予約が入っています。別の時間を選択してください。",
+        },
+        { status: 409 },
+      );
+    }
+
+    const auth = getCalendarAuth(["https://www.googleapis.com/auth/calendar"]);
     const calendar = google.calendar({ version: "v3", auth });
 
-    // Double-check the slot is still available
+    // Re-check the selected staff calendar immediately before insertion.
     const conflictCheck = await calendar.events.list({
-      calendarId,
+      calendarId: selectedSlot.calendarId,
       timeMin: start,
       timeMax: end,
       singleEvents: true,
@@ -80,27 +108,21 @@ export async function POST(request: NextRequest) {
 
     if (hasConflict) {
       return NextResponse.json(
-        { error: "この時間枠は既に予約が入っています。別の時間を選択してください。" },
+        {
+          error:
+            "この時間枠は既に予約が入っています。別の時間を選択してください。",
+        },
         { status: 409 },
       );
     }
 
-    // Create calendar event
-    const startDate = new Date(start);
-    const jstOffset = 9 * 60 * 60 * 1000;
-    const startJST = new Date(startDate.getTime() + jstOffset);
-    const month = startJST.getUTCMonth() + 1;
-    const date = startJST.getUTCDate();
-    const hour = startJST.getUTCHours();
-    const endDate = new Date(end);
-    const endJST = new Date(endDate.getTime() + jstOffset);
-    const endHour = endJST.getUTCHours();
-
     const event = await calendar.events.insert({
-      calendarId,
+      calendarId: selectedSlot.calendarId,
       requestBody: {
         summary: `初回カウンセリング - ${name}`,
-        description: `氏名: ${name}\n電話番号: ${phoneNumber || "未記入"}\n担当: ${staffName || "未定"}`,
+        description: `氏名: ${name}\n電話番号: ${
+          phoneNumber || "未記入"
+        }\n担当: ${selectedSlot.staffName}`,
         start: {
           dateTime: start,
           timeZone: "Asia/Tokyo",
@@ -112,13 +134,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Send Google Chat notification
     const chatMessage =
       `📅 新規カウンセリング予約が入りました\n` +
       `・氏名: ${name}\n` +
       `・電話番号: ${phoneNumber || "未記入"}\n` +
-      `・日時: ${month}/${date} ${hour}:00〜${endHour}:00\n` +
-      `・担当: ${staffName || "未定"}`;
+      `・日時: ${selectedSlot.label}\n` +
+      `・担当: ${selectedSlot.staffName}`;
 
     await notifyGoogleChat(chatMessage);
 

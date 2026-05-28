@@ -7,7 +7,6 @@ interface TimeSlot {
   start: string;
   end: string;
   label: string;
-  calendarId: string;
   staffName: string;
 }
 
@@ -150,12 +149,12 @@ export default function AppointmentScheduler() {
       const files = accidentFilesRef.current;
       if (files.length > 0) {
         try {
-          const folderId = submitData.folderId;
+          const uploadToken = submitData.uploadToken;
 
-          if (folderId) {
+          if (uploadToken) {
             setUploadStatus("写真・映像をアップロード中...");
             const formData = new FormData();
-            formData.append("folderId", folderId);
+            formData.append("uploadToken", uploadToken);
             for (const file of files) {
               formData.append("files", file);
             }
@@ -170,6 +169,10 @@ export default function AppointmentScheduler() {
                 "写真・映像のアップロードに失敗しました。予約は完了しますが、ファイルは後日お送りください。",
               );
             }
+          } else {
+            setUploadWarning(
+              "写真・映像のアップロード準備に失敗しました。予約は完了しますが、ファイルは後日お送りください。",
+            );
           }
         } catch {
           setUploadWarning(
@@ -189,8 +192,6 @@ export default function AppointmentScheduler() {
           end: selectedSlot.end,
           name: state.basicInfo.name,
           phoneNumber: state.basicInfo.phoneNumber,
-          calendarId: selectedSlot.calendarId,
-          staffName: selectedSlot.staffName,
         }),
       });
 

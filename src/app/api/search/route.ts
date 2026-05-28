@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const categoryLabels: Record<string, string> = {
   orthopedic: "整形外科",
@@ -35,13 +36,44 @@ async function refineQuery(
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit(request, "search", {
+    limit: 30,
+    windowMs: 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit);
+  }
+
   try {
     const body = await request.json();
     const { query, category, lat, lng } = body;
 
-    if (!query || !category || lat == null || lng == null) {
+    if (
+      typeof query !== "string" ||
+      !query.trim() ||
+      query.length > 120 ||
+      typeof category !== "string" ||
+      lat == null ||
+      lng == null
+    ) {
       return NextResponse.json(
         { error: "必要なパラメータが不足しています" },
+        { status: 400 }
+      );
+    }
+
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      return NextResponse.json(
+        { error: "位置情報が正しくありません" },
         { status: 400 }
       );
     }
@@ -63,7 +95,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Refine query with Gemini
-    const refinedQuery = await refineQuery(query, categoryLabel);
+    const refinedQuery = await refineQuery(query.trim(), categoryLabel);
 
     // Step 2: Search with Google Places API (New)
     const placesResponse = await fetch(
@@ -81,8 +113,8 @@ export async function POST(request: NextRequest) {
           locationBias: {
             circle: {
               center: {
-                latitude: lat,
-                longitude: lng,
+                latitude,
+                longitude,
               },
               radius: 10000.0,
             },

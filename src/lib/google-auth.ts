@@ -39,8 +39,12 @@ export function getAuth() {
     throw new Error("Google credentials are not configured");
   }
 
-  return new google.auth.JWT(email, undefined, privateKey, [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-  ]);
+  return new google.auth.JWT({
+    email,
+    key: privateKey,
+    scopes: [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive",
+    ],
+  });
 }

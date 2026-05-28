@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -92,6 +93,14 @@ JSONのみ返してください。他の文字を含めないでください。`
 };
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit(request, "validate-field", {
+    limit: 60,
+    windowMs: 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit);
+  }
+
   try {
     const { field, value } = await request.json();
 
@@ -102,6 +111,13 @@ export async function POST(request: NextRequest) {
 
     if (!value || typeof value !== "string" || !value.trim()) {
       return NextResponse.json({ ok: false, message: "入力してください" });
+    }
+
+    if (value.length > 3000) {
+      return NextResponse.json({
+        ok: false,
+        message: "入力内容が長すぎます。要点を短くまとめてご入力ください。",
+      });
     }
 
     const response = await ai.models.generateContent({
