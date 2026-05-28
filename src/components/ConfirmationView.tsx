@@ -124,7 +124,7 @@ export default function ConfirmationView() {
       <div className="mb-3 rounded-lg border border-gf-border bg-white px-6 py-5">
         <h3 className="mb-2 text-base font-medium text-gf-text">事故情報</h3>
         <dl className="divide-y divide-gray-100">
-          <InfoRow label="事故日" value={bi.accidentDate} />
+          <InfoRow label="事故日" value={formatJapaneseDate(bi.accidentDate)} />
           <InfoRow label="事故場所" value={bi.accidentLocation} />
           <InfoRow label="あなたの乗り物" value={bi.yourVehicle} />
           <InfoRow label="相手の乗り物" value={bi.otherVehicle} />
