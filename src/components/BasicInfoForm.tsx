@@ -308,6 +308,9 @@ function composeBirthDate(parts: BirthDateParts): string | null {
 }
 
 function validateBirthDateParts(parts: BirthDateParts): string | null {
+  const hasAnyPart = Boolean(parts.year.trim() || parts.month || parts.day);
+  if (!hasAnyPart) return null;
+
   if (!parts.year.trim()) return "年を入力してください";
   if (!/^\d{4}$/.test(parts.year)) return "西暦4桁で入力してください";
   if (!parts.month) return "月を選択してください";
@@ -675,7 +678,7 @@ export default function BasicInfoForm() {
           <RadioGroup name="gender" value={form.gender} onChange={(v) => updateField("gender", v)} options={["男", "女"]} />
         </FieldCard>
 
-        <FieldCard label="生年月日" required error={errors.birthDate}>
+        <FieldCard label="生年月日" error={errors.birthDate}>
           <div className="grid grid-cols-[1fr_88px_88px] gap-2">
             <label className="block">
               <span className="mb-1 block text-xs text-gf-text-secondary">
