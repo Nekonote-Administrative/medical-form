@@ -294,6 +294,45 @@ export async function POST(request: NextRequest) {
       }),
     );
 
+    // -------------------------------------------------------
+    // 5. line-crm-worker にヒアリング受信を通知（fire-and-forget）
+    //    Routine (s02-hearing-poller) が後続の _未受任 フォルダ作成を担当
+    // -------------------------------------------------------
+    const lineCrmWorkerUrl = process.env.LINE_CRM_WORKER_URL;
+    const lineCrmApiKey = process.env.LINE_CRM_API_KEY;
+    if (lineCrmWorkerUrl && lineCrmApiKey) {
+      try {
+        const res = await fetch(
+          `${lineCrmWorkerUrl.replace(/\/$/, "")}/api/hearing-submissions`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${lineCrmApiKey}`,
+            },
+            body: JSON.stringify({
+              name: basicInfo.name,
+              submittedAt: new Date().toISOString(),
+              raw: {
+                basicInfo,
+                facilities,
+                spreadsheetId,
+                folderId,
+              },
+            }),
+          },
+        );
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          console.error(
+            `line-crm-worker notify failed: ${res.status} ${text}`,
+          );
+        }
+      } catch (err) {
+        console.error("line-crm-worker notify error:", err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       spreadsheetId,

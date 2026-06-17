@@ -14,3 +14,7 @@ gemini_api_key                   = ""
 
 # enable_google_chat_webhook   = true
 # google_chat_webhook_url      = ""
+
+# enable_line_crm_notification = true
+# line_crm_worker_url          = "https://line-crm-worker.teramoto-4e9.workers.dev"
+# line_crm_api_key             = ""

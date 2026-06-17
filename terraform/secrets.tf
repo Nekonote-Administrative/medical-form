@@ -11,6 +11,7 @@ locals {
   optional_secret_keys = toset(concat(
     var.enable_google_calendar_staff ? ["google-calendar-staff"] : [],
     var.enable_google_chat_webhook ? ["google-chat-webhook-url"] : [],
+    var.enable_line_crm_notification ? ["line-crm-worker-url", "line-crm-api-key"] : [],
   ))
 
   all_secret_keys = setunion(local.required_secret_keys, local.optional_secret_keys)
@@ -24,6 +25,8 @@ locals {
     "gemini-api-key"                     = var.gemini_api_key
     "google-calendar-staff"              = var.google_calendar_staff
     "google-chat-webhook-url"            = var.google_chat_webhook_url
+    "line-crm-worker-url"                = var.line_crm_worker_url
+    "line-crm-api-key"                   = var.line_crm_api_key
   }
 }
 
