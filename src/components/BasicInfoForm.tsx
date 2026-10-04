@@ -348,6 +348,30 @@ function formatJapaneseDate(isoDate: string): string {
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_FILE_COUNT = 10;
 
+const FIELD_LABELS: Record<string, string> = {
+  name: "氏名",
+  nameKana: "フリガナ",
+  gender: "性別",
+  birthDate: "生年月日",
+  postalCode: "郵便番号",
+  address: "住所",
+  phoneNumber: "電話番号",
+  accidentDate: "事故日",
+  accidentLocation: "事故場所",
+  yourVehicle: "あなたの乗り物",
+  otherVehicle: "相手の乗り物",
+  accidentType: "事故種別",
+  accidentDescription: "事故状況説明",
+  hasAccidentPhotos: "事故車両の写真・映像",
+  accidentFiles: "写真・映像のアップロード",
+};
+
+function scrollToField(field: string) {
+  const target = document.getElementById(field === "birthDate" ? "birthYear" : field)
+    ?? document.querySelector(`[name="${field}"]`);
+  target?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 export default function BasicInfoForm() {
   const { state, dispatch, accidentFilesRef } = useFormContext();
 
@@ -476,7 +500,12 @@ export default function BasicInfoForm() {
 
   function updateField(field: keyof BasicInfo, value: string | string[]) {
     setForm((prev) => ({ ...prev, [field]: value }));
-
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
     if (field === "accidentLocation" && typeof value === "string") {
       if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
       if (!value.trim()) {
@@ -574,21 +603,31 @@ export default function BasicInfoForm() {
     if (!form.hasAccidentPhotos)
       newErrors.hasAccidentPhotos = "この質問は必須です";
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const firstInvalid = Object.keys(newErrors)[0];
+    if (firstInvalid) {
+      requestAnimationFrame(() => scrollToField(firstInvalid));
+      return false;
+    }
+    return true;
   }
 
   async function geocode(addr: string): Promise<GeoLocation | null> {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8000);
     try {
       const res = await fetch("/api/geocode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address: addr }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (data.error) return null;
       return { lat: data.lat, lng: data.lng };
     } catch {
       return null;
+    } finally {
+      window.clearTimeout(timeout);
     }
   }
 
@@ -663,6 +702,21 @@ export default function BasicInfoForm() {
           <span className="text-xs text-gf-error">* は必須項目です</span>
         </div>
       </Card>
+
+      {Object.keys(errors).length > 0 && (
+        <div role="alert" className="mb-3 rounded-lg border border-red-300 bg-red-50 px-6 py-4 text-sm text-gf-error">
+          <p className="font-medium">入力内容を確認してください。次の項目にエラーがあります。</p>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            {Object.keys(errors).map((field) => (
+              <li key={field}>
+                <button type="button" className="underline" onClick={() => scrollToField(field)}>
+                  {FIELD_LABELS[field] ?? field}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ===== 個人情報 ===== */}
       <SectionCard title="個人情報">
@@ -1012,6 +1066,7 @@ export default function BasicInfoForm() {
         <button
           type="reset"
           onClick={() => {
+            setErrors({});
             setBirthDateParts({ year: "", month: "", day: "" });
             setForm({
               name: "", nameKana: "", gender: "", birthDate: "", postalCode: "",
