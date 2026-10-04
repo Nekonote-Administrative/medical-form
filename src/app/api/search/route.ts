@@ -53,8 +53,7 @@ export async function POST(request: NextRequest) {
       !query.trim() ||
       query.length > 120 ||
       typeof category !== "string" ||
-      lat == null ||
-      lng == null
+      (lat == null) !== (lng == null)
     ) {
       return NextResponse.json(
         { error: "必要なパラメータが不足しています" },
@@ -62,16 +61,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const hasCenter = lat != null && lng != null;
     const latitude = Number(lat);
     const longitude = Number(lng);
-    if (
+    if (hasCenter && (
       !Number.isFinite(latitude) ||
       !Number.isFinite(longitude) ||
       latitude < -90 ||
       latitude > 90 ||
       longitude < -180 ||
       longitude > 180
-    ) {
+    )) {
       return NextResponse.json(
         { error: "位置情報が正しくありません" },
         { status: 400 }
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           textQuery: `${refinedQuery} ${categoryLabel}`,
-          locationBias: {
+          locationBias: hasCenter ? {
             circle: {
               center: {
                 latitude,
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
               },
               radius: 10000.0,
             },
-          },
+          } : undefined,
           languageCode: "ja",
           maxResultCount: 8,
         }),

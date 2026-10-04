@@ -23,6 +23,7 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [showManualInput, setShowManualInput] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const [manualName, setManualName] = useState("");
   const [hoveredResultIndex, setHoveredResultIndex] = useState<number | null>(null);
 
@@ -38,18 +39,14 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
     return null;
   }, [state.addressGeoLocation, state.accidentGeoLocation]);
 
-  const mapCenter = getSearchCenter() ?? { lat: 35.6812, lng: 139.7671 };
+  const mapCenter = getSearchCenter()
+    ?? (searchResults[0] ? { lat: searchResults[0].lat, lng: searchResults[0].lng } : { lat: 35.6812, lng: 139.7671 });
 
   const handleSearch = async () => {
     const trimmed = query.trim();
     if (!trimmed) return;
 
     const center = getSearchCenter();
-    if (!center) {
-      setSearchError("住所または事故場所の位置情報が設定されていません。");
-      return;
-    }
-
     setSearching(true);
     setSearchError(null);
     setSearchResults([]);
@@ -58,7 +55,7 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: trimmed, category, lat: center.lat, lng: center.lng }),
+        body: JSON.stringify({ query: trimmed, category, ...(center ? { lat: center.lat, lng: center.lng } : {}) }),
       });
 
       if (!res.ok) throw new Error("検索に失敗しました");
@@ -118,23 +115,11 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
   };
 
   const setNotApplicable = (value: boolean) => {
+    if (value && facilities.length > 0 && !window.confirm("追加済みの施設を削除して「通院していません」にしますか？")) return;
     dispatch({
       type: "SET_FACILITY_NOT_APPLICABLE",
       payload: { category, value },
     });
-  };
-
-  const canProceed = notApplicable || facilities.length > 0;
-
-  const goBack = () => dispatch({ type: "SET_STEP", payload: state.currentStep - 1 });
-  const goNext = () => {
-    if (!canProceed) return;
-    setQuery("");
-    setSearchResults([]);
-    setSearchError(null);
-    setShowManualInput(false);
-    setManualName("");
-    dispatch({ type: "SET_STEP", payload: state.currentStep + 1 });
   };
 
   const mapMarkers = searchResults.map((r) => ({ lat: r.lat, lng: r.lng, name: r.name }));
@@ -222,6 +207,9 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
         <>
           <div className="mb-3 rounded-lg border border-gf-border bg-white px-6 py-5">
             <p className="mb-3 text-sm text-gf-text">施設を検索</p>
+            {!getSearchCenter() && (
+              <p className="mb-3 text-xs text-gf-text-secondary">位置情報を取得できなかったため、施設名と市区町村を入力してください。</p>
+            )}
             <div className="flex gap-2">
               <input
                 type="text"
@@ -233,7 +221,7 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
                     handleSearch();
                   }
                 }}
-                placeholder="施設名や特徴を入力（例：「駅前のたなか」「大通り沿い」）"
+                placeholder={getSearchCenter() ? "施設名や特徴を入力（例：「駅前のたなか」「大通り沿い」）" : `例：千代田区 ○○${CATEGORY_LABELS[category]}`}
                 className="w-full border-b border-gf-border bg-transparent py-2 text-sm text-gf-text outline-none placeholder:text-gray-400 focus:border-b-2 focus:border-gf-input-focus"
               />
               <button
@@ -312,10 +300,17 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
               </div>
             )}
 
-            {/* Map */}
+            {/* Map is optional; the result list stays usable without it. */}
             {(searchResults.length > 0 || getSearchCenter()) && (
               <div className="mt-4">
-                <MapView center={mapCenter} markers={mapMarkers} highlightedIndex={hoveredResultIndex} />
+                <button type="button" onClick={() => setShowMap((current) => !current)} className="text-sm text-gf-purple underline">
+                  {showMap ? "地図を閉じる" : "地図を表示"}
+                </button>
+                {showMap && (
+                  <div className="mt-3">
+                    <MapView center={mapCenter} markers={mapMarkers} highlightedIndex={hoveredResultIndex} />
+                  </div>
+                )}
               </div>
             )}
 
@@ -369,31 +364,6 @@ export default function FacilitySearchSection({ category }: FacilitySearchSectio
         </>
       )}
 
-      {/* Navigation */}
-      <div className="flex items-start justify-between py-2">
-        <button
-          type="button"
-          onClick={goBack}
-          className="shrink-0 rounded bg-white px-5 py-2.5 text-sm font-medium text-gf-purple shadow-sm ring-1 ring-gf-border transition-colors hover:bg-gray-50"
-        >
-          戻る
-        </button>
-        <div className="flex flex-col items-end gap-1">
-          <button
-            type="button"
-            onClick={goNext}
-            disabled={!canProceed}
-            className="rounded bg-gf-purple px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gf-purple-dark disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            次へ
-          </button>
-          {!canProceed && (
-            <p className="text-xs text-gf-text-secondary">
-              施設を追加するか「通院していません」にチェック
-            </p>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

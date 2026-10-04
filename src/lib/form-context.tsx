@@ -140,6 +140,9 @@ function formReducer(state: FormState, action: FormAction): FormState {
     case "SET_FACILITY_NOT_APPLICABLE":
       return {
         ...state,
+        facilities: action.payload.value
+          ? { ...state.facilities, [action.payload.category]: [] }
+          : state.facilities,
         facilityNotApplicable: {
           ...state.facilityNotApplicable,
           [action.payload.category]: action.payload.value,

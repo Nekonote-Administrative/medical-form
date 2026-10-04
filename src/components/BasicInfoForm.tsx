@@ -372,7 +372,7 @@ function scrollToField(field: string) {
   target?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-export default function BasicInfoForm() {
+export default function BasicInfoForm({ section }: { section: 0 | 1 | 2 }) {
   const { state, dispatch, accidentFilesRef } = useFormContext();
 
   const [form, setForm] = useState<BasicInfo>({
@@ -584,24 +584,27 @@ export default function BasicInfoForm() {
 
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
-    if (!form.name.trim()) newErrors.name = "この質問は必須です";
-    if (!form.nameKana.trim()) newErrors.nameKana = "この質問は必須です";
-    if (!form.gender) newErrors.gender = "この質問は必須です";
-    const birthDateError = validateBirthDateParts(birthDateParts);
-    if (birthDateError) newErrors.birthDate = birthDateError;
-    if (!form.postalCode.trim()) newErrors.postalCode = "この質問は必須です";
-    if (!form.address.trim()) newErrors.address = "この質問は必須です";
-    if (!form.phoneNumber.trim()) newErrors.phoneNumber = "この質問は必須です";
-    if (!form.accidentDate) newErrors.accidentDate = "この質問は必須です";
-    if (!form.accidentLocation.trim())
-      newErrors.accidentLocation = "この質問は必須です";
-    if (!form.yourVehicle) newErrors.yourVehicle = "この質問は必須です";
-    if (!form.otherVehicle) newErrors.otherVehicle = "この質問は必須です";
-    if (!form.accidentType) newErrors.accidentType = "この質問は必須です";
-    if (!form.accidentDescription.trim())
-      newErrors.accidentDescription = "この質問は必須です";
-    if (!form.hasAccidentPhotos)
+    if (section === 0) {
+      if (!form.name.trim()) newErrors.name = "この質問は必須です";
+      if (!form.nameKana.trim()) newErrors.nameKana = "この質問は必須です";
+      if (!form.gender) newErrors.gender = "この質問は必須です";
+      const birthDateError = validateBirthDateParts(birthDateParts);
+      if (birthDateError) newErrors.birthDate = birthDateError;
+      if (!form.postalCode.trim()) newErrors.postalCode = "この質問は必須です";
+      if (!form.address.trim()) newErrors.address = "この質問は必須です";
+      if (!form.phoneNumber.trim()) newErrors.phoneNumber = "この質問は必須です";
+    } else if (section === 1) {
+      if (!form.accidentDate) newErrors.accidentDate = "この質問は必須です";
+      if (!form.accidentLocation.trim())
+        newErrors.accidentLocation = "この質問は必須です";
+      if (!form.yourVehicle) newErrors.yourVehicle = "この質問は必須です";
+      if (!form.otherVehicle) newErrors.otherVehicle = "この質問は必須です";
+      if (!form.accidentType) newErrors.accidentType = "この質問は必須です";
+      if (!form.accidentDescription.trim())
+        newErrors.accidentDescription = "この質問は必須です";
+    } else if (!form.hasAccidentPhotos) {
       newErrors.hasAccidentPhotos = "この質問は必須です";
+    }
     setErrors(newErrors);
     const firstInvalid = Object.keys(newErrors)[0];
     if (firstInvalid) {
@@ -631,12 +634,7 @@ export default function BasicInfoForm() {
     }
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setGeoWarning("");
-
-    if (!validate()) return;
-
+  function saveBasicInfo(): BasicInfo {
     const normalizedBirthDate = composeBirthDate(birthDateParts) ?? form.birthDate;
     const trimmed: BasicInfo = {
       ...form,
@@ -658,6 +656,26 @@ export default function BasicInfoForm() {
     // Sync files to ref for access from other components
     accidentFilesRef.current =
       trimmed.hasAccidentPhotos === "はい" ? accidentFiles : [];
+
+    return trimmed;
+  }
+
+  function handleBack() {
+    saveBasicInfo();
+    dispatch({ type: "SET_STEP", payload: section - 1 });
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setGeoWarning("");
+
+    if (!validate()) return;
+
+    const trimmed = saveBasicInfo();
+    if (section < 2) {
+      dispatch({ type: "SET_STEP", payload: section + 1 });
+      return;
+    }
 
     setLoading(true);
 
@@ -688,7 +706,7 @@ export default function BasicInfoForm() {
       setLoading(false);
     }
 
-    dispatch({ type: "SET_STEP", payload: 1 });
+    dispatch({ type: "SET_STEP", payload: 3 });
   }
 
   return (
@@ -699,6 +717,7 @@ export default function BasicInfoForm() {
           被害者請求ヒアリングシート
         </h2>
         <div className="mt-4 border-t border-gf-border pt-3">
+          <span className="mr-3 text-sm text-gf-text">{section === 0 ? "個人情報" : section === 1 ? "事故・治療情報" : "保険・その他"}</span>
           <span className="text-xs text-gf-error">* は必須項目です</span>
         </div>
       </Card>
@@ -719,6 +738,7 @@ export default function BasicInfoForm() {
       )}
 
       {/* ===== 個人情報 ===== */}
+      {section === 0 && (
       <SectionCard title="個人情報">
         <FieldCard label="氏名" required error={errors.name}>
           <TextInput id="name" value={form.name} onChange={(v) => updateField("name", v)} placeholder="回答を入力" />
@@ -820,8 +840,11 @@ export default function BasicInfoForm() {
           <TextInput id="occupation" value={form.occupation} onChange={(v) => updateField("occupation", v)} placeholder="回答を入力" />
         </FieldCard>
       </SectionCard>
+      )}
 
       {/* ===== 事故情報 ===== */}
+      {section === 1 && (
+      <>
       <SectionCard title="事故情報">
         <FieldCard label="事故日" required error={errors.accidentDate}>
           <input
@@ -887,8 +910,12 @@ export default function BasicInfoForm() {
           <CheckboxGroup options={TREATMENT_PAYMENT_OPTIONS} selected={form.treatmentPaymentStatus} onToggle={togglePaymentStatus} />
         </FieldCard>
       </SectionCard>
+      </>
+      )}
 
       {/* ===== 保険情報 ===== */}
+      {section === 2 && (
+      <>
       <SectionCard title="保険情報">
         <FieldCard label="相手の保険会社">
           <SelectInput
@@ -1046,6 +1073,8 @@ export default function BasicInfoForm() {
           <TextArea id="remarks" value={form.remarks} onChange={(v) => updateField("remarks", v)} placeholder="回答を入力" />
         </FieldCard>
       </SectionCard>
+      </>
+      )}
 
       {/* Geo warning */}
       {geoWarning && (
@@ -1056,6 +1085,11 @@ export default function BasicInfoForm() {
 
       {/* Submit */}
       <div className="flex items-center justify-between py-2">
+        {section > 0 && (
+          <button type="button" onClick={handleBack} disabled={loading} className="rounded bg-white px-5 py-2.5 text-sm font-medium text-gf-purple shadow-sm ring-1 ring-gf-border disabled:opacity-50">
+            戻る
+          </button>
+        )}
         <button
           type="submit"
           disabled={loading}
@@ -1066,6 +1100,9 @@ export default function BasicInfoForm() {
         <button
           type="reset"
           onClick={() => {
+            dispatch({ type: "RESET" });
+            accidentFilesRef.current = [];
+            setAccidentFiles([]);
             setErrors({});
             setBirthDateParts({ year: "", month: "", day: "" });
             setForm({

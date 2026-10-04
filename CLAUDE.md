@@ -35,8 +35,8 @@ Medical information collection form (被害者請求ヒアリングシート) fo
 
 ### 7-Step Form Flow
 
-0. **BasicInfoForm** — Personal & accident details with AI field validation
-1-3. **FacilitySearchSection** — Search/select 整形外科 (max 3), 整骨院 (max 4), 薬局 (max 3)
+0-2. **BasicInfoForm** — Personal, accident/treatment, and insurance/other sections with section-level validation
+3. **FacilitySelectionStep** — One screen for 整形外科 (max 3), 整骨院 (max 4), 薬局 (max 3), each requiring a facility or explicit non-use; **FacilitySearchSection** handles the active category
 4. **ConfirmationView** — Review all data + embedded YouTube instruction video
 5. **AppointmentScheduler** — Staff calendar availability & booking
 6. **CompleteView** — Success with ICS download & Google Calendar link
