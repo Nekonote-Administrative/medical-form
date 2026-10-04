@@ -310,7 +310,8 @@ medical-form/
 │   │           └── book/route.ts          # 予約作成 API
 │   ├── components/
 │   │   ├── BasicInfoForm.tsx        # 基本情報入力フォーム
-│   │   ├── FacilitySearchSection.tsx # 施設検索・選択
+│   │   ├── FacilitySelectionStep.tsx # 通院先3区分の進捗・切り替え
+│   │   ├── FacilitySearchSection.tsx # 選択中の区分の施設検索・選択
 │   │   ├── AppointmentScheduler.tsx  # 予約スケジューラ
 │   │   ├── ConfirmationView.tsx      # 確認画面
 │   │   ├── CompleteView.tsx          # 完了画面

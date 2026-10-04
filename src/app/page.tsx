@@ -2,9 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { FormProvider, useFormContext } from "@/lib/form-context";
-import { CATEGORIES } from "@/types";
 import BasicInfoForm from "@/components/BasicInfoForm";
-import FacilitySearchSection from "@/components/FacilitySearchSection";
+import FacilitySelectionStep from "@/components/FacilitySelectionStep";
 import ConfirmationView from "@/components/ConfirmationView";
 import CompleteView from "@/components/CompleteView";
 import AppointmentScheduler from "@/components/AppointmentScheduler";
@@ -15,13 +14,13 @@ function StepContent() {
 
   switch (currentStep) {
     case 0:
-      return <BasicInfoForm />;
+      return <BasicInfoForm key={currentStep} section={0} />;
     case 1:
-      return <FacilitySearchSection category={CATEGORIES[0]} />;
+      return <BasicInfoForm key={currentStep} section={1} />;
     case 2:
-      return <FacilitySearchSection category={CATEGORIES[1]} />;
+      return <BasicInfoForm key={currentStep} section={2} />;
     case 3:
-      return <FacilitySearchSection category={CATEGORIES[2]} />;
+      return <FacilitySelectionStep />;
     case 4:
       return <ConfirmationView />;
     case 5:
